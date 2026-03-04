@@ -1,4 +1,4 @@
-package com.example.amigosdaquinta.ui.screens.home
+package com.example.amigosdaquinta.ui.screens.jogadores
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
@@ -7,35 +7,27 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.example.amigosdaquinta.data.local.entity.Jogador
 
 /**
- * Dialog de cadastro de novo jogador.
- *
- * Validacoes ativas:
- * - Nome nao pode ser vazio.
- * - Numero de camisa deve ser um inteiro entre 1 e 99.
- *
- * O campo de numero aceita apenas digitos e limita a entrada a 2 caracteres via [onValueChange].
- * O botao de confirmar permanece desabilitado ate que nome e numero sejam validos.
- *
- * Dialog para adicionar um novo jogador.
- * @param onConfirm Retorna (nome, numeroCamisa, isGoleiro) apos validacao
+ * Dialog para editar dados de um jogador existente.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AdicionarJogadorDialog(
+fun EditarJogadorDialog(
+    jogador: Jogador,
     onDismiss: () -> Unit,
     onConfirm: (nome: String, numero: Int, isGoleiro: Boolean) -> Unit
 ) {
-    var nome by remember { mutableStateOf("") }
-    var numero by remember { mutableStateOf("") }
-    var isGoleiro by remember { mutableStateOf(false) }
+    var nome by remember { mutableStateOf(jogador.nome) }
+    var numero by remember { mutableStateOf(jogador.numeroCamisa.toString()) }
+    var isGoleiro by remember { mutableStateOf(jogador.isPosicaoGoleiro) }
     var erroNome by remember { mutableStateOf(false) }
     var erroNumero by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Adicionar Jogador") },
+        title = { Text("Editar Jogador") },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -112,7 +104,7 @@ fun AdicionarJogadorDialog(
                 },
                 enabled = nome.isNotBlank() && !erroNumero
             ) {
-                Text("Adicionar")
+                Text("Salvar")
             }
         },
         dismissButton = {
