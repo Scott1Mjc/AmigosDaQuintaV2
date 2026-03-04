@@ -15,28 +15,13 @@ import com.example.amigosdaquinta.data.local.entity.TimeColor
 import com.example.amigosdaquinta.viewmodel.SessaoViewModel
 
 /**
- * Tela de formação automática de times.
+ * Tela de formação automática de times por ordem de chegada.
  *
- * Cobre três cenários mutuamente exclusivos, determinados pelo número de presentes
- * e pelo estado do jogo anterior:
- *
- * 1. Primeiro jogo com 33+ jogadores (Rotacao Total):
- *    Dois times inteiramente novos, formados por ordem de chegada.
- *
- * 2. Segundo jogo ou posterior com 30+ jogadores (Rotacao Forcada):
- *    Remove os jogadores do jogo anterior e forma dois times com quem ainda nao jogou.
- *
- * 3. Segundo jogo ou posterior com menos de 30 jogadores (Normal):
- *    Time vencedor permanece; novo time adversario é montado da fila de espera.
- *    Se a fila estiver curta, completa com jogadores do time perdedor por ordem de chegada.
- *
- * A logica de montagem está contida no bloco [remember] e recalculada sempre que
- * [filaEspera], [jogadoresTimeGanhador] ou [forcaRotacao] mudarem.
- *
- * Duracao do jogo: 30 min se for o primeiro jogo, 15 min para os demais.
- *
- * TODO: Considerar mover a logica de formacao de times para o [SessaoViewModel] ou um UseCase,
- * deixando esta tela apenas como apresentacao do resultado calculado.
+ * REGRAS IMPLEMENTADAS:
+ * - Se time jogou 2x consecutivas OU empate: forma 2 times novos
+ * - Caso contrário: time vencedor permanece, forma 1 time novo
+ * - Goleiros podem repetir (exceção por falta de goleiros)
+ * - Ordem de chegada é respeitada
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,94 +34,89 @@ fun FormacaoAutomaticaScreen(
     onIniciarJogo: () -> Unit
 ) {
     val numeroProximoJogo by sessaoViewModel.numeroProximoJogo.collectAsState()
+    val jogosConsecutivos by sessaoViewModel.jogosConsecutivosTimeAtual.collectAsState()
+
     val totalPresentes = filaEspera.size
-    val ehPrimeiroJogo = jogadoresTimeGanhador.isEmpty()
 
-    val forcaRotacao = if (ehPrimeiroJogo) totalPresentes >= 33 else totalPresentes >= 30
-    val duracaoJogo = if (ehPrimeiroJogo) 30 else 15
+    // Detecta se é 1º jogo (não tem time ganhador)
+    val eh1Jogo = jogadoresTimeGanhador.isEmpty()
 
-    val (timeBranco, timeVermelho) = remember(filaEspera, jogadoresTimeGanhador, forcaRotacao, ehPrimeiroJogo) {
-        val todos = filaEspera.map { it.first }
+    // Se time jogou 2x OU empate: ambos saem (forma 2 times novos)
+    val ambosTimesSaem = jogosConsecutivos >= 2 || (timeGanhador == null && !eh1Jogo)
 
-        when {
-            ehPrimeiroJogo -> {
-                // Cenario 1: Primeiro jogo — forma dois times pela ordem de chegada
-                val goleiros = todos.filter { it.isPosicaoGoleiro }
-                val linha = todos.filter { !it.isPosicaoGoleiro }
-                if (goleiros.size >= 2 && linha.size >= 20) {
-                    Pair(
-                        listOf(goleiros[0]) + linha.take(10),
-                        listOf(goleiros[1]) + linha.drop(10).take(10)
-                    )
-                } else {
-                    Pair(emptyList(), emptyList())
-                }
+    // Formação dos times
+    val (timeBranco, timeVermelho) = remember(filaEspera, jogadoresTimeGanhador, ambosTimesSaem, eh1Jogo) {
+
+        if (ambosTimesSaem || eh1Jogo) {
+            // CENÁRIO 1: Forma 2 times NOVOS pela ordem de chegada
+            val todosJogadores = filaEspera.map { it.first }
+
+            val goleiros = todosJogadores.filter { it.isPosicaoGoleiro }
+            val jogadoresLinha = todosJogadores.filter { !it.isPosicaoGoleiro }
+
+            if (goleiros.size >= 2 && jogadoresLinha.size >= 20) {
+                val branco = listOf(goleiros[0]) + jogadoresLinha.take(10)
+                val vermelho = listOf(goleiros[1]) + jogadoresLinha.drop(10).take(10)
+                Pair(branco, vermelho)
+            } else {
+                // Não tem jogadores suficientes
+                Pair(emptyList(), emptyList())
             }
 
-            forcaRotacao -> {
-                // Cenario 2: Rotacao forcada — remove quem jogou no jogo anterior e forma dois times novos
-                val idsAnterior = jogadoresTimeGanhador.map { it.id }.toSet()
-                val disponiveis = todos.filter { it.id !in idsAnterior }
-                val goleiros = disponiveis.filter { it.isPosicaoGoleiro }
-                val linha = disponiveis.filter { !it.isPosicaoGoleiro }
-                if (goleiros.size >= 2 && linha.size >= 20) {
-                    Pair(
-                        listOf(goleiros[0]) + linha.take(10),
-                        listOf(goleiros[1]) + linha.drop(10).take(10)
-                    )
-                } else {
-                    Pair(emptyList(), emptyList())
-                }
+        } else {
+            // CENÁRIO 2: Time vencedor PERMANECE, forma 1 time novo
+            val todosJogadores = filaEspera.map { it.first }
+
+            val jogadoresDisponiveis = todosJogadores.filter { jogador ->
+                !jogadoresTimeGanhador.any { it.id == jogador.id }
             }
 
-            else -> {
-                // Cenario 3: Normal — time vencedor permanece, novo time vem da fila
-                val idsGanhador = jogadoresTimeGanhador.map { it.id }.toSet()
-                val disponiveis = todos.filter { it.id !in idsGanhador }
-                val goleiroNovo = disponiveis.firstOrNull { it.isPosicaoGoleiro }
-                val linhaNova = disponiveis.filter { !it.isPosicaoGoleiro }.take(10)
+            // Busca goleiro (pode reutilizar se necessário)
+            val goleiroDisponivel = jogadoresDisponiveis.firstOrNull { it.isPosicaoGoleiro }
+                ?: todosJogadores.firstOrNull { it.isPosicaoGoleiro } // Reutiliza goleiro se necessário
 
-                if (goleiroNovo != null && linhaNova.size == 10) {
-                    var timeNovo = listOf(goleiroNovo) + linhaNova
+            val linhaDisponivel = jogadoresDisponiveis.filter { !it.isPosicaoGoleiro }.take(10)
 
-                    // Completa o time novo com jogadores do time perdedor se necessario
-                    if (timeNovo.size < 11) {
-                        val faltam = 11 - timeNovo.size
-                        val idsNoTimeNovo = timeNovo.map { it.id }.toSet()
-                        val complemento = jogadoresTimeGanhador
-                            .filter { it.id !in idsNoTimeNovo }
-                            .sortedBy { jogador -> filaEspera.indexOfFirst { it.first.id == jogador.id } }
-                            .take(faltam)
-                        timeNovo = timeNovo + complemento
-                    }
+            if (goleiroDisponivel != null && linhaDisponivel.size == 10) {
+                val timeNovo = listOf(goleiroDisponivel) + linhaDisponivel
 
-                    if (timeGanhador == TimeColor.BRANCO || timeGanhador == null) {
-                        Pair(jogadoresTimeGanhador, timeNovo)
-                    } else {
-                        Pair(timeNovo, jogadoresTimeGanhador)
-                    }
+                // Completa se necessário
+                val timeNovoFinal = if (timeNovo.size < 11) {
+                    val faltam = 11 - timeNovo.size
+                    val paraCompletar = jogadoresTimeGanhador
+                        .filter { jogador -> !timeNovo.any { it.id == jogador.id } }
+                        .sortedBy { jogador ->
+                            filaEspera.indexOfFirst { it.first.id == jogador.id }
+                        }
+                        .take(faltam)
+                    timeNovo + paraCompletar
                 } else {
-                    Pair(emptyList(), emptyList())
+                    timeNovo
                 }
+
+                // Define cores
+                if (timeGanhador == TimeColor.BRANCO || timeGanhador == null) {
+                    Pair(jogadoresTimeGanhador, timeNovoFinal)
+                } else {
+                    Pair(timeNovoFinal, jogadoresTimeGanhador)
+                }
+            } else {
+                Pair(emptyList(), emptyList())
             }
         }
     }
 
     val podeIniciar = timeBranco.size == 11 && timeVermelho.size == 11
 
-    val tituloTela = when {
-        ehPrimeiroJogo && forcaRotacao -> "Formar 1 Jogo (Rotacao Total 33+)"
-        forcaRotacao -> "Formar ${numeroProximoJogo} Jogo (Rotacao 30+)"
-        else -> "Formar ${numeroProximoJogo} Jogo"
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(tituloTela) },
+                title = {
+                    Text("Formar ${numeroProximoJogo}º Jogo")
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Voltar")
+                        Icon(Icons.Default.ArrowBack, "Voltar")
                     }
                 }
             )
@@ -149,47 +129,97 @@ fun FormacaoAutomaticaScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            FormacaoInfoCard(
-                ehPrimeiroJogo = ehPrimeiroJogo,
-                forcaRotacao = forcaRotacao,
-                numeroProximoJogo = numeroProximoJogo,
-                timeGanhador = timeGanhador,
-                totalPresentes = totalPresentes
-            )
+            // Card de informações
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "Formação Automática - ${numeroProximoJogo}º Jogo",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
 
+                    if (ambosTimesSaem) {
+                        if (jogosConsecutivos >= 2) {
+                            Text(
+                                "Time jogou 2x consecutivas - SAI",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                "Formando 2 times novos pela ordem de chegada",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        } else {
+                            Text(
+                                "EMPATE no jogo anterior",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                "Ambos os times saem - formando 2 times novos",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    } else if (!eh1Jogo) {
+                        Text(
+                            "Time ${if (timeGanhador == TimeColor.BRANCO) "BRANCO" else "VERMELHO"} venceu e permanece",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            "Novo time formado pela ordem de chegada",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Total na lista: $totalPresentes jogadores")
+                }
+            }
+
+            // Times lado a lado
             Row(
                 modifier = Modifier.weight(1f),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // Time Branco
                 Card(
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
                 ) {
                     TimePreviewColumn(
                         titulo = "TIME BRANCO",
                         jogadores = timeBranco,
-                        permanece = !forcaRotacao && !ehPrimeiroJogo && (timeGanhador == TimeColor.BRANCO || timeGanhador == null)
+                        permanece = !ambosTimesSaem && !eh1Jogo && (timeGanhador == TimeColor.BRANCO || timeGanhador == null)
                     )
                 }
 
+                // Time Vermelho
                 Card(
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
                 ) {
                     TimePreviewColumn(
                         titulo = "TIME VERMELHO",
                         jogadores = timeVermelho,
-                        permanece = !forcaRotacao && !ehPrimeiroJogo && timeGanhador == TimeColor.VERMELHO
+                        permanece = !ambosTimesSaem && !eh1Jogo && timeGanhador == TimeColor.VERMELHO
                     )
                 }
             }
 
+            // Botão Iniciar Jogo
             Button(
                 onClick = {
-                    sessaoViewModel.criarPrimeiroJogo(
+                    sessaoViewModel.criarJogo(
                         timeBranco = timeBranco,
-                        timeVermelho = timeVermelho,
-                        duracao = duracaoJogo
+                        timeVermelho = timeVermelho
                     )
                     onIniciarJogo()
                 },
@@ -197,60 +227,13 @@ fun FormacaoAutomaticaScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    if (podeIniciar) "Iniciar Jogo - $duracaoJogo minutos"
-                    else "Nao ha jogadores suficientes"
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun FormacaoInfoCard(
-    ehPrimeiroJogo: Boolean,
-    forcaRotacao: Boolean,
-    numeroProximoJogo: Int,
-    timeGanhador: TimeColor?,
-    totalPresentes: Int
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = if (ehPrimeiroJogo) "Formacao Automatica - 1 Jogo"
-                else "Formacao Automatica - $numeroProximoJogo Jogo",
-                style = MaterialTheme.typography.titleLarge
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            if (forcaRotacao) {
-                Text(
-                    text = if (ehPrimeiroJogo) "ROTACAO TOTAL (33+ jogadores)"
-                    else "ROTACAO ATIVADA (30+ jogadores)",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = if (ehPrimeiroJogo) "Formacao pela ordem de chegada"
-                    else "Todos que nao jogaram no jogo anterior entram agora",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            } else {
-                Text(
-                    text = if (timeGanhador != null) {
-                        "Time ${if (timeGanhador == TimeColor.BRANCO) "BRANCO" else "VERMELHO"} venceu e permanece"
+                    if (podeIniciar) {
+                        "Iniciar Jogo"
                     } else {
-                        "Empate - Time Branco permanece"
-                    },
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Text(
-                    text = "Novo time formado pela ordem de chegada",
-                    style = MaterialTheme.typography.bodySmall
+                        "Não há jogadores suficientes"
+                    }
                 )
             }
-
-            Spacer(modifier = Modifier.height(8.dp))
-            Text("Total na lista: $totalPresentes jogadores")
         }
     }
 }
@@ -266,20 +249,27 @@ private fun TimePreviewColumn(
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        Text(text = titulo, style = MaterialTheme.typography.titleMedium)
-        Text(
-            text = if (permanece) "Permanece" else "Novo",
-            style = MaterialTheme.typography.bodySmall
-        )
+        Text(titulo, style = MaterialTheme.typography.titleMedium)
+
+        if (permanece) {
+            Text("Permanece", style = MaterialTheme.typography.bodySmall)
+        } else {
+            Text("Novo", style = MaterialTheme.typography.bodySmall)
+        }
 
         Spacer(modifier = Modifier.height(12.dp))
 
         if (jogadores.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
                 Text("Aguardando...")
             }
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 items(jogadores) { jogador ->
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
@@ -288,7 +278,9 @@ private fun TimePreviewColumn(
                         tonalElevation = 1.dp
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(8.dp),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
@@ -296,7 +288,7 @@ private fun TimePreviewColumn(
                                 style = MaterialTheme.typography.bodySmall
                             )
                             Text(
-                                text = "#${jogador.numeroCamisa}",
+                                text = "Camisa ${jogador.numeroCamisa}",
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }

@@ -5,7 +5,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.amigosdaquinta.data.local.entity.Jogador
@@ -23,9 +22,9 @@ import com.example.amigosdaquinta.viewmodel.SessaoViewModel
  *
  * Ao tocar em voltar com progresso não salvo, um dialog de confirmação é exibido.
  *
- * TODO: Exibir feedback visual (Snackbar) quando o usuário tentar adicionar um segundo
- * goleiro — atualmente a tentativa é silenciosamente ignorada.
+ * TODO: Exibir feedback visual (Snackbar) quando o usuário tentar adicionar um segundo goleiro — atualmente a tentativa é silenciosamente ignorada.
  */
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FormacaoManualScreen(
@@ -34,35 +33,32 @@ fun FormacaoManualScreen(
     onNavigateBack: () -> Unit,
     onIniciarJogo: () -> Unit
 ) {
-    var timeBranco by rememberSaveable { mutableStateOf<List<Jogador>>(emptyList()) }
-    var timeVermelho by rememberSaveable { mutableStateOf<List<Jogador>>(emptyList()) }
-    var showSelecionarDialog by remember { mutableStateOf(false) }
+    var timeBranco by remember { mutableStateOf<List<Jogador>>(emptyList()) }
+    var timeVermelho by remember { mutableStateOf<List<Jogador>>(emptyList()) }
+    var showDialog by remember { mutableStateOf(false) }
     var timeParaAdicionar by remember { mutableStateOf<TimeColor?>(null) }
-    var showConfirmBackDialog by remember { mutableStateOf(false) }
 
-    val jogadoresDisponiveis = remember(timeBranco, timeVermelho, jogadoresPresentes) {
-        val idsEmTime = (timeBranco + timeVermelho).map { it.id }.toSet()
-        jogadoresPresentes.map { it.first }.filter { it.id !in idsEmTime }
-    }
+    val jogadoresDisponiveis = jogadoresPresentes
+        .map { it.first }
+        .filter { jogador ->
+            !timeBranco.any { it.id == jogador.id } &&
+                    !timeVermelho.any { it.id == jogador.id }
+        }
 
     val timeBrancoCompleto = timeBranco.size == 11
     val timeVermelhoCompleto = timeVermelho.size == 11
     val temGoleiroBranco = timeBranco.any { it.isPosicaoGoleiro }
     val temGoleiroVermelho = timeVermelho.any { it.isPosicaoGoleiro }
-    val podeIniciar = timeBrancoCompleto && timeVermelhoCompleto && temGoleiroBranco && temGoleiroVermelho
-    val temProgresso = timeBranco.isNotEmpty() || timeVermelho.isNotEmpty()
+    val podeIniciar = timeBrancoCompleto && timeVermelhoCompleto &&
+            temGoleiroBranco && temGoleiroVermelho
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Formar 1 Jogo (Manual)") },
+                title = { Text("Formar 1º Jogo (Manual)") },
                 navigationIcon = {
-                    IconButton(
-                        onClick = {
-                            if (temProgresso) showConfirmBackDialog = true else onNavigateBack()
-                        }
-                    ) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Voltar")
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.Default.ArrowBack, "Voltar")
                     }
                 }
             )
@@ -72,24 +68,27 @@ fun FormacaoManualScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(16.dp)
         ) {
+            // Instruções
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Selecione 11 jogadores para cada time",
+                        "Selecione 11 jogadores para cada time",
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
-                        text = "Cada time precisa de 1 goleiro",
+                        "Cada time precisa de 1 goleiro",
                         style = MaterialTheme.typography.bodySmall
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Disponiveis: ${jogadoresDisponiveis.size} jogadores")
+                    Text("Disponíveis: ${jogadoresDisponiveis.size} jogadores")
                 }
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Times
             Row(
                 modifier = Modifier.weight(1f),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -103,7 +102,7 @@ fun FormacaoManualScreen(
                     temGoleiro = temGoleiroBranco,
                     onAdicionar = {
                         timeParaAdicionar = TimeColor.BRANCO
-                        showSelecionarDialog = true
+                        showDialog = true
                     },
                     onRemover = { jogador ->
                         timeBranco = timeBranco.filter { it.id != jogador.id }
@@ -119,7 +118,7 @@ fun FormacaoManualScreen(
                     temGoleiro = temGoleiroVermelho,
                     onAdicionar = {
                         timeParaAdicionar = TimeColor.VERMELHO
-                        showSelecionarDialog = true
+                        showDialog = true
                     },
                     onRemover = { jogador ->
                         timeVermelho = timeVermelho.filter { it.id != jogador.id }
@@ -127,12 +126,14 @@ fun FormacaoManualScreen(
                 )
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Botão Iniciar
             Button(
                 onClick = {
-                    sessaoViewModel.criarPrimeiroJogo(
+                    sessaoViewModel.criarJogo(
                         timeBranco = timeBranco,
-                        timeVermelho = timeVermelho,
-                        duracao = 30
+                        timeVermelho = timeVermelho
                     )
                     onIniciarJogo()
                 },
@@ -140,71 +141,48 @@ fun FormacaoManualScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = if (podeIniciar) {
-                        "Iniciar 1 Jogo - 30 minutos"
+                    if (podeIniciar) {
+                        "Iniciar 1º Jogo"
                     } else {
-                        buildString {
-                            append("Complete os times")
-                            if (!timeBrancoCompleto || !timeVermelhoCompleto) {
-                                append(" (B: ${timeBranco.size}/11, V: ${timeVermelho.size}/11)")
-                            }
-                            if (!temGoleiroBranco) append(" - Falta goleiro Branco")
-                            if (!temGoleiroVermelho) append(" - Falta goleiro Vermelho")
-                        }
+                        "Complete os times (11 jogadores cada + 1 goleiro)"
                     }
                 )
             }
         }
     }
 
-    if (showSelecionarDialog && timeParaAdicionar != null) {
+    // Dialog de seleção
+    if (showDialog && timeParaAdicionar != null) {
         SelecionarJogadorParaTimeDialog(
             jogadores = jogadoresDisponiveis,
             onDismiss = {
-                showSelecionarDialog = false
+                showDialog = false
                 timeParaAdicionar = null
             },
             onSelect = { jogador ->
                 when (timeParaAdicionar) {
                     TimeColor.BRANCO -> {
+                        // Validação: máximo 1 goleiro
                         val jaTemGoleiro = timeBranco.any { it.isPosicaoGoleiro }
-                        if (!jogador.isPosicaoGoleiro || !jaTemGoleiro) {
+                        if (jogador.isPosicaoGoleiro && jaTemGoleiro) {
+                            // Não adiciona
+                        } else {
                             timeBranco = timeBranco + jogador
                         }
                     }
                     TimeColor.VERMELHO -> {
+                        // Validação: máximo 1 goleiro
                         val jaTemGoleiro = timeVermelho.any { it.isPosicaoGoleiro }
-                        if (!jogador.isPosicaoGoleiro || !jaTemGoleiro) {
+                        if (jogador.isPosicaoGoleiro && jaTemGoleiro) {
+                            // Não adiciona
+                        } else {
                             timeVermelho = timeVermelho + jogador
                         }
                     }
                     else -> {}
                 }
-                showSelecionarDialog = false
+                showDialog = false
                 timeParaAdicionar = null
-            }
-        )
-    }
-
-    if (showConfirmBackDialog) {
-        AlertDialog(
-            onDismissRequest = { showConfirmBackDialog = false },
-            title = { Text("Descartar formacao?") },
-            text = { Text("Os times que voce formou serao perdidos. Deseja voltar mesmo assim?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showConfirmBackDialog = false
-                        onNavigateBack()
-                    }
-                ) {
-                    Text("Voltar", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showConfirmBackDialog = false }) {
-                    Text("Continuar Formando")
-                }
             }
         )
     }
