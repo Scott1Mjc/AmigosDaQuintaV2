@@ -16,6 +16,7 @@ import com.example.amigosdaquinta.ui.screens.history.DetalhesJogoScreen
 import com.example.amigosdaquinta.ui.screens.history.EstatisticasJogadorScreen
 import com.example.amigosdaquinta.ui.screens.history.HistoricoScreen
 import com.example.amigosdaquinta.ui.screens.home.HomeScreen
+import com.example.amigosdaquinta.ui.screens.jogadores.GerenciarJogadoresScreen
 import com.example.amigosdaquinta.ui.screens.jogo.JogoScreen
 import com.example.amigosdaquinta.ui.screens.jogo.ResultadoScreen
 import com.example.amigosdaquinta.ui.screens.presenca.PresencaScreen
@@ -26,18 +27,17 @@ import com.example.amigosdaquinta.viewmodel.SessaoViewModel
 /**
  * Define todas as rotas de navegacao do app e o mapeamento entre rota e Composable.
  *
- * O estado compartilhado entre telas (times, placar, vencedor) e lido diretamente
+ * O estado compartilhado entre telas (times, placar, vencedor) é lido diretamente
  * dos ViewModels aqui, evitando passagem de dados via argumentos de rota para objetos complexos.
  * Apenas tipos primitivos (Long, String) sao trafegados como argumentos de rota.
  *
  * Fluxo principal de navegacao:
- * Home -> Presenca -> FormacaoManual (ou FormacaoAutomatica se 33+) -> Jogo -> Resultado
- *                                                      ^                            |
- *                                                      |______ (proximo jogo) _____/
+ * Home -> Presenca -> FormacaoManual -> Jogo -> Resultado
  *
  * A rota [Screen.FormacaoManual] decide internamente se exibe formacao manual ou automatica,
  * com base no total de jogadores presentes (threshold: 33).
  */
+
 sealed class Screen(val route: String) {
     object Home : Screen("home")
     object Presenca : Screen("presenca")
@@ -55,6 +55,7 @@ sealed class Screen(val route: String) {
         fun createRoute(jogadorId: Long) = "estatisticas/$jogadorId"
     }
     object Debug : Screen("debug")
+    object GerenciarJogadores : Screen("gerenciar_jogadores")
 }
 
 @Composable
@@ -67,7 +68,6 @@ fun NavGraph(
     val listaPresenca by sessaoViewModel.listaPresenca.collectAsState()
     val timeBranco by sessaoViewModel.timeBrancoAtual.collectAsState()
     val timeVermelho by sessaoViewModel.timeVermelhoAtual.collectAsState()
-    val duracao by sessaoViewModel.duracaoAtual.collectAsState()
     val placarBranco by sessaoViewModel.placarBranco.collectAsState()
     val placarVermelho by sessaoViewModel.placarVermelho.collectAsState()
     val vencedorUltimo by sessaoViewModel.vencedorUltimoJogo.collectAsState()
@@ -77,64 +77,57 @@ fun NavGraph(
         navController = navController,
         startDestination = Screen.Home.route
     ) {
+        // Home
         composable(Screen.Home.route) {
             HomeScreen(
                 viewModel = jogadoresViewModel,
-                onNavigateToPresenca = { navController.navigate(Screen.Presenca.route) },
-                onNavigateToHistorico = { navController.navigate(Screen.Historico.route) },
-                onNavigateToDebug = { navController.navigate(Screen.Debug.route) }
+                onNavigateToPresenca = {
+                    navController.navigate(Screen.Presenca.route)
+                },
+                onNavigateToHistorico = {
+                    navController.navigate(Screen.Historico.route)
+                },
+                onNavigateToDebug = {
+                    navController.navigate(Screen.Debug.route)
+                },
+                onNavigateToGerenciarJogadores = {
+                    navController.navigate(Screen.GerenciarJogadores.route)
+                }
             )
         }
 
+        // Gerenciar Jogadores
+        composable(Screen.GerenciarJogadores.route) {
+            GerenciarJogadoresScreen(
+                viewModel = jogadoresViewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        // Lista de Presença
         composable(Screen.Presenca.route) {
             PresencaScreen(
                 jogadoresViewModel = jogadoresViewModel,
                 sessaoViewModel = sessaoViewModel,
-                onNavigateBack = { navController.popBackStack() },
-                onFormarTimes = { navController.navigate(Screen.FormacaoManual.route) }
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onFormarTimes = {
+                    navController.navigate(Screen.FormacaoManual.route)
+                }
             )
         }
 
-        /**
-         * Ponto de decisao do primeiro jogo:
-         * - 33+ jogadores: encaminha para formacao automatica com rotacao total.
-         * - Menos de 33: formacao manual pelo usuario.
-         */
+        // Formação Manual
         composable(Screen.FormacaoManual.route) {
-            if (listaPresenca.size >= 33) {
-                FormacaoAutomaticaScreen(
-                    timeGanhador = null,
-                    jogadoresTimeGanhador = emptyList(),
-                    filaEspera = listaPresenca,
-                    sessaoViewModel = sessaoViewModel,
-                    onNavigateBack = { navController.popBackStack() },
-                    onIniciarJogo = {
-                        navController.navigate(Screen.Jogo.route) {
-                            popUpTo(Screen.Presenca.route)
-                        }
-                    }
-                )
-            } else {
-                FormacaoManualScreen(
-                    jogadoresPresentes = listaPresenca,
-                    sessaoViewModel = sessaoViewModel,
-                    onNavigateBack = { navController.popBackStack() },
-                    onIniciarJogo = {
-                        navController.navigate(Screen.Jogo.route) {
-                            popUpTo(Screen.Presenca.route)
-                        }
-                    }
-                )
-            }
-        }
-
-        composable(Screen.FormacaoAutomatica.route) {
-            FormacaoAutomaticaScreen(
-                timeGanhador = vencedorUltimo,
-                jogadoresTimeGanhador = jogadoresTimeGanhador,
-                filaEspera = listaPresenca,
+            FormacaoManualScreen(
+                jogadoresPresentes = listaPresenca,
                 sessaoViewModel = sessaoViewModel,
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
                 onIniciarJogo = {
                     navController.navigate(Screen.Jogo.route) {
                         popUpTo(Screen.Presenca.route)
@@ -143,13 +136,33 @@ fun NavGraph(
             )
         }
 
+        // Formação Automática
+        composable(Screen.FormacaoAutomatica.route) {
+            FormacaoAutomaticaScreen(
+                timeGanhador = vencedorUltimo,
+                jogadoresTimeGanhador = jogadoresTimeGanhador,
+                filaEspera = listaPresenca,
+                sessaoViewModel = sessaoViewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onIniciarJogo = {
+                    navController.navigate(Screen.Jogo.route) {
+                        popUpTo(Screen.Presenca.route)
+                    }
+                }
+            )
+        }
+
+        // Jogo
         composable(Screen.Jogo.route) {
             JogoScreen(
                 sessaoViewModel = sessaoViewModel,
-                duracaoMinutos = duracao,
                 timeBranco = timeBranco,
                 timeVermelho = timeVermelho,
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
                 onFinalizarJogo = { vencedor ->
                     val vencedorString = when (vencedor) {
                         TimeColor.BRANCO -> "branco"
@@ -163,8 +176,10 @@ fun NavGraph(
             )
         }
 
+        // Resultado
         composable(Screen.Resultado.route) { backStackEntry ->
-            val vencedor = when (backStackEntry.arguments?.getString("vencedor")) {
+            val vencedorString = backStackEntry.arguments?.getString("vencedor")
+            val vencedor = when (vencedorString) {
                 "branco" -> TimeColor.BRANCO
                 "vermelho" -> TimeColor.VERMELHO
                 else -> null
@@ -174,7 +189,6 @@ fun NavGraph(
                 vencedor = vencedor,
                 placarBranco = placarBranco,
                 placarVermelho = placarVermelho,
-                duracaoMinutos = duracao,
                 onProximoJogo = {
                     sessaoViewModel.limparJogoAtual()
                     navController.navigate(Screen.FormacaoAutomatica.route) {
@@ -190,45 +204,61 @@ fun NavGraph(
             )
         }
 
+        // Histórico
         composable(Screen.Historico.route) {
             HistoricoScreen(
                 viewModel = historicoViewModel,
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
                 onJogoClick = { jogoId ->
                     navController.navigate(Screen.DetalhesJogo.createRoute(jogoId))
                 }
             )
         }
 
+        // Detalhes do Jogo
         composable(
             route = Screen.DetalhesJogo.route,
-            arguments = listOf(navArgument("jogoId") { type = NavType.LongType })
+            arguments = listOf(
+                navArgument("jogoId") { type = NavType.LongType }
+            )
         ) { backStackEntry ->
             val jogoId = backStackEntry.arguments?.getLong("jogoId") ?: 0L
             DetalhesJogoScreen(
                 jogoId = jogoId,
                 viewModel = historicoViewModel,
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
             )
         }
 
+        // Estatísticas do Jogador
         composable(
             route = Screen.EstatisticasJogador.route,
-            arguments = listOf(navArgument("jogadorId") { type = NavType.LongType })
+            arguments = listOf(
+                navArgument("jogadorId") { type = NavType.LongType }
+            )
         ) { backStackEntry ->
             val jogadorId = backStackEntry.arguments?.getLong("jogadorId") ?: 0L
             EstatisticasJogadorScreen(
                 jogadorId = jogadorId,
                 viewModel = historicoViewModel,
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
             )
         }
 
+        // Debug
         composable(Screen.Debug.route) {
             DebugScreen(
                 jogadoresViewModel = jogadoresViewModel,
                 sessaoViewModel = sessaoViewModel,
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
             )
         }
     }
