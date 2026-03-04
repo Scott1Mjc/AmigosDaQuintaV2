@@ -28,11 +28,12 @@ import kotlinx.coroutines.launch
  * - Controlar fluxo entre jogos (vencedor permanece, etc)
  *
  * Regras de negócio implementadas:
- * - 1º jogo: 30 minutos
- * - Demais jogos: 15 minutos
- * - Time vencedor permanece (modo normal)
- * - Rotação forçada (30+ jogadores)
- * - Rotação total (33+ jogadores)
+ * - 1º jogo: Formação manual
+ * - Demais jogos: Formação automática por ordem de chegada
+ * - Time vencedor permanece (se não jogou 2x consecutivas)
+ * - Se time vencer 2x seguidas: sai obrigatoriamente
+ * - Se empate: ambos os times saem
+ * - Goleiros podem jogar mais de 2x (exceção por falta de goleiros)
  *
  * @property jogoRepository Repository para gerenciar jogos
  * @property presencaRepository Repository para gerenciar presenças
@@ -45,6 +46,10 @@ class SessaoViewModel(
     // Controle de numeração de jogos
     private val _numeroProximoJogo = MutableStateFlow(2)
     val numeroProximoJogo: StateFlow<Int> = _numeroProximoJogo.asStateFlow()
+
+    // Contador de jogos consecutivos do time atual em campo
+    private val _jogosConsecutivosTimeAtual = MutableStateFlow(0)
+    val jogosConsecutivosTimeAtual: StateFlow<Int> = _jogosConsecutivosTimeAtual.asStateFlow()
 
     // Sessão atual
     private val _sessaoAtual = MutableStateFlow<SessaoJogos?>(null)
@@ -67,9 +72,6 @@ class SessaoViewModel(
 
     private val _timeVermelhoAtual = MutableStateFlow<List<Jogador>>(emptyList())
     val timeVermelhoAtual: StateFlow<List<Jogador>> = _timeVermelhoAtual.asStateFlow()
-
-    private val _duracaoAtual = MutableStateFlow(30)
-    val duracaoAtual: StateFlow<Int> = _duracaoAtual.asStateFlow()
 
     // Placar
     private val _placarBranco = MutableStateFlow(0)
@@ -102,6 +104,7 @@ class SessaoViewModel(
             _listaPresenca.value = emptyList()
             _vencedorUltimoJogo.value = null
             _jogadoresUltimoTimeGanhador.value = emptyList()
+            _jogosConsecutivosTimeAtual.value = 0
             Log.d(TAG, "Nova sessão iniciada")
         }
     }
@@ -136,21 +139,14 @@ class SessaoViewModel(
     /**
      * Cria um novo jogo e registra as participações.
      *
-     * Lógica de numeração:
-     * - Se é o primeiro jogo do dia: numeroJogo = 1
-     * - Se é jogo subsequente: usa o contador interno
-     *
-     * Lógica de duração:
-     * - Deve ser passada como parâmetro (30 ou 15 minutos)
+     * NOTA: Duração foi removida - jogos não têm limite de tempo fixo.
      *
      * @param timeBranco Lista de jogadores do time branco
      * @param timeVermelho Lista de jogadores do time vermelho
-     * @param duracao Duração do jogo em minutos (30 para 1º jogo, 15 para demais)
      */
-    fun criarPrimeiroJogo(
+    fun criarJogo(
         timeBranco: List<Jogador>,
-        timeVermelho: List<Jogador>,
-        duracao: Int
+        timeVermelho: List<Jogador>
     ) {
         viewModelScope.launch {
             try {
@@ -159,7 +155,7 @@ class SessaoViewModel(
                 val jogo = Jogo(
                     data = System.currentTimeMillis(),
                     numeroJogo = numeroJogo,
-                    duracao = duracao,
+                    duracao = 0, // Campo mantido no banco mas não usado
                     status = StatusJogo.EM_ANDAMENTO,
                     placarBranco = 0,
                     placarVermelho = 0
@@ -194,14 +190,13 @@ class SessaoViewModel(
                 // Atualizar estado
                 _timeBrancoAtual.value = timeBranco
                 _timeVermelhoAtual.value = timeVermelho
-                _duracaoAtual.value = duracao
                 _placarBranco.value = 0
                 _placarVermelho.value = 0
 
                 // Incrementar contador para próximo jogo
                 _numeroProximoJogo.value = numeroJogo + 1
 
-                Log.d(TAG, "Jogo $numeroJogo criado (ID: $jogoId, duração: $duracao min)")
+                Log.d(TAG, "Jogo $numeroJogo criado (ID: $jogoId)")
             } catch (e: Exception) {
                 Log.e(TAG, "Erro ao criar jogo", e)
             }
@@ -210,7 +205,11 @@ class SessaoViewModel(
 
     /**
      * Finaliza o jogo atual e salva o resultado.
-     * Armazena o vencedor e time ganhador para o próximo jogo.
+     *
+     * NOVA LÓGICA:
+     * - Se vencedor: incrementa contador de jogos consecutivos
+     * - Se vencedor já jogou 2x: força saída (ambos times saem)
+     * - Se empate: ambos times saem (contador reseta)
      *
      * @param vencedor Time vencedor (BRANCO, VERMELHO ou null para empate)
      */
@@ -228,8 +227,8 @@ class SessaoViewModel(
                     Jogo(
                         id = jogoId,
                         data = System.currentTimeMillis(),
-                        numeroJogo = 1,
-                        duracao = _duracaoAtual.value,
+                        numeroJogo = _numeroProximoJogo.value - 1,
+                        duracao = 0,
                         status = StatusJogo.FINALIZADO,
                         timeVencedor = vencedor,
                         placarBranco = _placarBranco.value,
@@ -237,15 +236,42 @@ class SessaoViewModel(
                     )
                 )
 
-                // Armazenar vencedor para próximo jogo
-                _vencedorUltimoJogo.value = vencedor
-                _jogadoresUltimoTimeGanhador.value = when (vencedor) {
-                    TimeColor.BRANCO -> _timeBrancoAtual.value
-                    TimeColor.VERMELHO -> _timeVermelhoAtual.value
-                    null -> _timeBrancoAtual.value // Empate: time branco permanece
+                // NOVA LÓGICA: Controle de jogos consecutivos
+                when (vencedor) {
+                    TimeColor.BRANCO -> {
+                        _jogosConsecutivosTimeAtual.value++
+
+                        if (_jogosConsecutivosTimeAtual.value >= 2) {
+                            // Time branco jogou 2x seguidas: SAI
+                            _jogadoresUltimoTimeGanhador.value = emptyList()
+                            _vencedorUltimoJogo.value = null
+                            _jogosConsecutivosTimeAtual.value = 0
+                            Log.d(TAG, "Time BRANCO jogou 2x consecutivas - ambos saem")
+                        } else {
+                            // Time branco permanece
+                            _jogadoresUltimoTimeGanhador.value = _timeBrancoAtual.value
+                            _vencedorUltimoJogo.value = TimeColor.BRANCO
+                            Log.d(TAG, "Time BRANCO venceu - permanece em campo")
+                        }
+                    }
+
+                    TimeColor.VERMELHO -> {
+                        // Se time vermelho vencer, reseta contador e ele fica
+                        _jogosConsecutivosTimeAtual.value = 1
+                        _jogadoresUltimoTimeGanhador.value = _timeVermelhoAtual.value
+                        _vencedorUltimoJogo.value = TimeColor.VERMELHO
+                        Log.d(TAG, "Time VERMELHO venceu - permanece em campo")
+                    }
+
+                    null -> {
+                        // EMPATE: ambos saem
+                        _jogadoresUltimoTimeGanhador.value = emptyList()
+                        _vencedorUltimoJogo.value = null
+                        _jogosConsecutivosTimeAtual.value = 0
+                        Log.d(TAG, "EMPATE - ambos os times saem")
+                    }
                 }
 
-                Log.d(TAG, "Jogo finalizado. Vencedor: ${vencedor?.name ?: "EMPATE"}")
             } catch (e: Exception) {
                 Log.e(TAG, "Erro ao finalizar jogo", e)
             }
@@ -268,7 +294,7 @@ class SessaoViewModel(
 
     /**
      * Limpa os dados do jogo atual, mantendo informações do vencedor.
-     * Usado ao passar para o próximo jogo (botão "Próximo Jogo").
+     * Usado ao passar para o próximo jogo.
      */
     fun limparJogoAtual() {
         _jogoAtualId.value = null
@@ -280,25 +306,24 @@ class SessaoViewModel(
     }
 
     /**
-     * Limpa TODOS os dados da sessão, incluindo vencedor e contador.
-     * Usado ao encerrar a sessão (botão "Encerrar Sessão").
+     * Limpa TODOS os dados da sessão.
+     * Usado ao encerrar a sessão.
      */
     fun limparSessaoCompleta() {
         _jogoAtualId.value = null
         _timeBrancoAtual.value = emptyList()
         _timeVermelhoAtual.value = emptyList()
-        _duracaoAtual.value = 30
         _placarBranco.value = 0
         _placarVermelho.value = 0
         _vencedorUltimoJogo.value = null
         _jogadoresUltimoTimeGanhador.value = emptyList()
         _numeroProximoJogo.value = 2
+        _jogosConsecutivosTimeAtual.value = 0
         Log.d(TAG, "Sessão completa encerrada e resetada")
     }
 
     /**
      * Marca um jogador como inativo e remove da lista/fila.
-     * Usado quando um jogador vai embora durante a sessão.
      *
      * @param jogadorId ID do jogador a ser marcado como inativo
      */
@@ -312,7 +337,6 @@ class SessaoViewModel(
 
     /**
      * Registra um gol para um dos times.
-     * Atualiza o placar no banco de dados.
      *
      * @param time Time que marcou o gol
      */

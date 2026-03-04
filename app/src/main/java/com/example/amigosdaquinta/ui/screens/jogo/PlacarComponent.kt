@@ -22,7 +22,8 @@ fun PlacarComponent(
     placarBranco: Int,
     placarVermelho: Int,
     onGolBranco: () -> Unit,
-    onGolVermelho: () -> Unit
+    onGolVermelho: () -> Unit,
+    modifier: Modifier
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
