@@ -1,6 +1,6 @@
 # Amigos da Quinta
 
-Aplicativo Android para gerenciar peladas semanais — controle de presença, formação automática de times, placar em tempo real e histórico de partidas.
+Aplicativo Android para gerenciar partidas de futebol — controle de presença, formação automática de times, placar em tempo real e histórico de partidas.
 
 ---
 
