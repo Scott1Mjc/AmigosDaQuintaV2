@@ -7,21 +7,22 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.example.amigosdaquinta.data.local.entity.Jogador
-import com.example.amigosdaquinta.viewmodel.JogadoresViewModel
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.AccessTime
 import com.example.amigosdaquinta.ui.screens.formacao.SelecionarJogadorParaTimeDialog
+import com.example.amigosdaquinta.viewmodel.JogadoresViewModel
+import com.example.amigosdaquinta.viewmodel.SessaoViewModel
 
 /**
  * Tela inicial do app com layout otimizado para tablet.
@@ -37,16 +38,19 @@ import com.example.amigosdaquinta.ui.screens.formacao.SelecionarJogadorParaTimeD
 @Composable
 fun HomeScreen(
     viewModel: JogadoresViewModel,
+    sessaoViewModel: SessaoViewModel,
     onNavigateToPresenca: () -> Unit = {},
     onNavigateToHistorico: () -> Unit = {},
     onNavigateToDebug: () -> Unit = {},
-    onNavigateToGerenciarJogadores: () -> Unit = {}
+    onNavigateToGerenciarJogadores: () -> Unit = {},
+    onNavigateToFormacaoManual: () -> Unit = {}
 ) {
     val jogadores by viewModel.jogadores.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
-    var timeBranco by remember { mutableStateOf<List<Jogador>>(emptyList()) }
-    var timeVermelho by remember { mutableStateOf<List<Jogador>>(emptyList()) }
+    // ✅ USAR rememberSaveable para manter estado ao navegar
+    var timeBranco by rememberSaveable { mutableStateOf<List<Jogador>>(emptyList()) }
+    var timeVermelho by rememberSaveable { mutableStateOf<List<Jogador>>(emptyList()) }
     var showSelecionarDialog by remember { mutableStateOf(false) }
     var timeParaAdicionar by remember { mutableStateOf<String?>(null) }
     var showFabMenu by remember { mutableStateOf(false) }
@@ -258,10 +262,7 @@ fun HomeScreen(
                     },
                     onRemoverJogador = { jogador ->
                         timeVermelho = timeVermelho.filter { it.id != jogador.id }
-                    },
-                    onIniciarSessao = if (timeBranco.size == 11 && timeVermelho.size == 11) {
-                        onNavigateToPresenca
-                    } else null
+                    }
                 )
 
                 // Card Time Branco
@@ -278,19 +279,57 @@ fun HomeScreen(
                     },
                     onRemoverJogador = { jogador ->
                         timeBranco = timeBranco.filter { it.id != jogador.id }
-                    },
-                    onIniciarSessao = if (timeBranco.size == 11 && timeVermelho.size == 11) {
-                        onNavigateToPresenca
-                    } else null
+                    }
                 )
+
+                // ✅ BOTÃO INICIAR SESSÃO AQUI EMBAIXO (SÓ 1)
+                if (timeBranco.size == 11 && timeVermelho.size == 11) {
+                    Button(
+                        onClick = {
+                            // Salvar times no SessaoViewModel
+                            sessaoViewModel.criarJogo(
+                                timeBranco = timeBranco,
+                                timeVermelho = timeVermelho
+                            )
+                            // Ir direto pro jogo
+                            onNavigateToFormacaoManual()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp)
+                    ) {
+                        Text(
+                            "Iniciar Sessão",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                }
             }
         }
     }
 
     // Dialog: Selecionar Jogador para Time
     if (showSelecionarDialog && timeParaAdicionar != null) {
+        val jaTemGoleiroBranco = timeBranco.any { it.isPosicaoGoleiro }
+        val jaTemGoleiroVermelho = timeVermelho.any { it.isPosicaoGoleiro }
+
+        // ✅ FILTRAR GOLEIROS se já tem 1 no time
+        val jogadoresFiltrados = when (timeParaAdicionar) {
+            "BRANCO" -> if (jaTemGoleiroBranco) {
+                jogadoresDisponiveis.filter { !it.isPosicaoGoleiro }
+            } else {
+                jogadoresDisponiveis
+            }
+            "VERMELHO" -> if (jaTemGoleiroVermelho) {
+                jogadoresDisponiveis.filter { !it.isPosicaoGoleiro }
+            } else {
+                jogadoresDisponiveis
+            }
+            else -> jogadoresDisponiveis
+        }
+
         SelecionarJogadorParaTimeDialog(
-            jogadores = jogadoresDisponiveis,
+            jogadores = jogadoresFiltrados,
             onDismiss = {
                 showSelecionarDialog = false
                 timeParaAdicionar = null
@@ -298,7 +337,6 @@ fun HomeScreen(
             onSelect = { jogador ->
                 when (timeParaAdicionar) {
                     "BRANCO" -> {
-                        // Validação: máximo 1 goleiro
                         val jaTemGoleiro = timeBranco.any { it.isPosicaoGoleiro }
                         if (jogador.isPosicaoGoleiro && jaTemGoleiro) {
                             showErroGoleiroDialog = true
@@ -307,7 +345,6 @@ fun HomeScreen(
                         }
                     }
                     "VERMELHO" -> {
-                        // Validação: máximo 1 goleiro
                         val jaTemGoleiro = timeVermelho.any { it.isPosicaoGoleiro }
                         if (jogador.isPosicaoGoleiro && jaTemGoleiro) {
                             showErroGoleiroDialog = true
@@ -345,7 +382,7 @@ fun HomeScreen(
 }
 
 /**
- * Card compacto de time (menor, não ocupa tela toda)
+ * Card compacto de time (sem botão iniciar sessão interno)
  */
 @Composable
 private fun TimeCardCompact(
@@ -354,8 +391,7 @@ private fun TimeCardCompact(
     cor: androidx.compose.ui.graphics.Color,
     jogadores: List<Jogador>,
     onAdicionarJogador: () -> Unit,
-    onRemoverJogador: (Jogador) -> Unit,
-    onIniciarSessao: (() -> Unit)?
+    onRemoverJogador: (Jogador) -> Unit
 ) {
     Card(
         modifier = modifier,
@@ -384,7 +420,7 @@ private fun TimeCardCompact(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Botão adicionar
+            // Botão adicionar (só se não estiver completo)
             if (jogadores.size < 11) {
                 Button(
                     onClick = onAdicionarJogador,
@@ -407,7 +443,7 @@ private fun TimeCardCompact(
                 }
             } else {
                 LazyColumn(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(
@@ -419,17 +455,6 @@ private fun TimeCardCompact(
                             onRemover = { onRemoverJogador(jogador) }
                         )
                     }
-                }
-            }
-
-            // Botão iniciar sessão
-            if (onIniciarSessao != null) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Button(
-                    onClick = onIniciarSessao,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Iniciar Sessão")
                 }
             }
         }

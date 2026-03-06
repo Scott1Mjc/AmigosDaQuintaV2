@@ -77,10 +77,12 @@ fun NavGraph(
         navController = navController,
         startDestination = Screen.Home.route
     ) {
+
         // Home
         composable(Screen.Home.route) {
             HomeScreen(
                 viewModel = jogadoresViewModel,
+                sessaoViewModel = sessaoViewModel,
                 onNavigateToPresenca = {
                     navController.navigate(Screen.Presenca.route)
                 },
@@ -92,6 +94,9 @@ fun NavGraph(
                 },
                 onNavigateToGerenciarJogadores = {
                     navController.navigate(Screen.GerenciarJogadores.route)
+                },
+                onNavigateToFormacaoManual = {
+                    navController.navigate(Screen.Jogo.route)
                 }
             )
         }
