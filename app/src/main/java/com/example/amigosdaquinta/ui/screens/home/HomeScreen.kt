@@ -1,5 +1,6 @@
 package com.example.amigosdaquinta.ui.screens.home
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,6 +18,10 @@ import androidx.compose.ui.unit.dp
 import com.example.amigosdaquinta.data.local.entity.Jogador
 import com.example.amigosdaquinta.viewmodel.JogadoresViewModel
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.AccessTime
+import com.example.amigosdaquinta.ui.screens.formacao.SelecionarJogadorParaTimeDialog
 
 /**
  * Tela inicial do app com layout otimizado para tablet.
@@ -40,12 +45,21 @@ fun HomeScreen(
     val jogadores by viewModel.jogadores.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
-    var showAdicionarDialog by remember { mutableStateOf(false) }
+    var timeBranco by remember { mutableStateOf<List<Jogador>>(emptyList()) }
+    var timeVermelho by remember { mutableStateOf<List<Jogador>>(emptyList()) }
+    var showSelecionarDialog by remember { mutableStateOf(false) }
     var timeParaAdicionar by remember { mutableStateOf<String?>(null) }
     var showFabMenu by remember { mutableStateOf(false) }
+    var showErroGoleiroDialog by remember { mutableStateOf(false) }
 
     val jogadoresOrdenados by remember(jogadores) {
         derivedStateOf { jogadores.sortedBy { it.numeroCamisa } }
+    }
+
+    // Jogadores disponíveis (não estão em nenhum time)
+    val jogadoresDisponiveis = jogadoresOrdenados.filter { jogador ->
+        !timeBranco.any { it.id == jogador.id } &&
+                !timeVermelho.any { it.id == jogador.id }
     }
 
     Scaffold(
@@ -64,7 +78,7 @@ fun HomeScreen(
                     )
                 },
                 actions = {
-                    IconButton(onClick = onNavigateToDebug) {
+                    TextButton(onClick = onNavigateToDebug) {
                         Text("Debug")
                     }
                 }
@@ -73,30 +87,65 @@ fun HomeScreen(
         floatingActionButton = {
             Column(
                 horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Menu expandido
-                if (showFabMenu) {
-                    // Histórico
-                    SmallFloatingActionButton(
-                        onClick = {
-                            showFabMenu = false
-                            onNavigateToHistorico()
-                        },
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                // Opções do menu
+                AnimatedVisibility(visible = showFabMenu) {
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Icon(Icons.Default.History, "Ver Histórico")
-                    }
+                        // Ver Histórico
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                shape = MaterialTheme.shapes.small
+                            ) {
+                                Text(
+                                    "Ver Histórico",
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            }
+                            SmallFloatingActionButton(
+                                onClick = {
+                                    showFabMenu = false
+                                    onNavigateToHistorico()
+                                },
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer
+                            ) {
+                                Icon(Icons.Default.AccessTime, "Ver Histórico")
+                            }
+                        }
 
-                    // Gerenciar Jogadores
-                    SmallFloatingActionButton(
-                        onClick = {
-                            showFabMenu = false
-                            onNavigateToGerenciarJogadores()
-                        },
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer
-                    ) {
-                        Icon(Icons.Default.Settings, "Gerenciar Jogadores")
+                        // Gerenciar Jogadores
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                shape = MaterialTheme.shapes.small
+                            ) {
+                                Text(
+                                    "Gerenciar Jogadores",
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            }
+                            SmallFloatingActionButton(
+                                onClick = {
+                                    showFabMenu = false
+                                    onNavigateToGerenciarJogadores()
+                                },
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer
+                            ) {
+                                Icon(Icons.Default.Settings, "Gerenciar Jogadores")
+                            }
+                        }
                     }
                 }
 
@@ -119,10 +168,10 @@ fun HomeScreen(
                 .padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // COLUNA 1: Lista de Jogadores
+            // COLUNA 1: Lista de Jogadores (lado esquerdo)
             Card(
                 modifier = Modifier
-                    .weight(1f)
+                    .width(300.dp)
                     .fillMaxHeight()
             ) {
                 Column(
@@ -190,62 +239,123 @@ fun HomeScreen(
                 }
             }
 
-            // COLUNA 2: Card Time Vermelho
-            TimeCard(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight(),
-                titulo = "Card Time Vermelho",
-                cor = MaterialTheme.colorScheme.errorContainer,
-                onAdicionarJogador = {
-                    timeParaAdicionar = "VERMELHO"
-                    showAdicionarDialog = true
-                },
-                jogadoresDisponiveis = jogadoresOrdenados.size
-            )
+            // COLUNA 2: Cards dos times (lado direito)
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Card Time Vermelho
+                TimeCardCompact(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    titulo = "Card Time Vermelho",
+                    cor = MaterialTheme.colorScheme.errorContainer,
+                    jogadores = timeVermelho,
+                    onAdicionarJogador = {
+                        timeParaAdicionar = "VERMELHO"
+                        showSelecionarDialog = true
+                    },
+                    onRemoverJogador = { jogador ->
+                        timeVermelho = timeVermelho.filter { it.id != jogador.id }
+                    },
+                    onIniciarSessao = if (timeBranco.size == 11 && timeVermelho.size == 11) {
+                        onNavigateToPresenca
+                    } else null
+                )
 
-            // COLUNA 3: Card Time Branco
-            TimeCard(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight(),
-                titulo = "Card Time Branco",
-                cor = MaterialTheme.colorScheme.primaryContainer,
-                onAdicionarJogador = {
-                    timeParaAdicionar = "BRANCO"
-                    showAdicionarDialog = true
-                },
-                jogadoresDisponiveis = jogadoresOrdenados.size
-            )
+                // Card Time Branco
+                TimeCardCompact(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    titulo = "Card Time Branco",
+                    cor = MaterialTheme.colorScheme.primaryContainer,
+                    jogadores = timeBranco,
+                    onAdicionarJogador = {
+                        timeParaAdicionar = "BRANCO"
+                        showSelecionarDialog = true
+                    },
+                    onRemoverJogador = { jogador ->
+                        timeBranco = timeBranco.filter { it.id != jogador.id }
+                    },
+                    onIniciarSessao = if (timeBranco.size == 11 && timeVermelho.size == 11) {
+                        onNavigateToPresenca
+                    } else null
+                )
+            }
         }
     }
 
-    // Dialog: Adicionar Jogador
-    if (showAdicionarDialog) {
-        AdicionarJogadorDialog(
+    // Dialog: Selecionar Jogador para Time
+    if (showSelecionarDialog && timeParaAdicionar != null) {
+        SelecionarJogadorParaTimeDialog(
+            jogadores = jogadoresDisponiveis,
             onDismiss = {
-                showAdicionarDialog = false
+                showSelecionarDialog = false
                 timeParaAdicionar = null
             },
-            onConfirm = { nome, numero, isGoleiro ->
-                viewModel.adicionarJogador(nome, numero, isGoleiro)
-                showAdicionarDialog = false
+            onSelect = { jogador ->
+                when (timeParaAdicionar) {
+                    "BRANCO" -> {
+                        // Validação: máximo 1 goleiro
+                        val jaTemGoleiro = timeBranco.any { it.isPosicaoGoleiro }
+                        if (jogador.isPosicaoGoleiro && jaTemGoleiro) {
+                            showErroGoleiroDialog = true
+                        } else if (timeBranco.size < 11) {
+                            timeBranco = timeBranco + jogador
+                        }
+                    }
+                    "VERMELHO" -> {
+                        // Validação: máximo 1 goleiro
+                        val jaTemGoleiro = timeVermelho.any { it.isPosicaoGoleiro }
+                        if (jogador.isPosicaoGoleiro && jaTemGoleiro) {
+                            showErroGoleiroDialog = true
+                        } else if (timeVermelho.size < 11) {
+                            timeVermelho = timeVermelho + jogador
+                        }
+                    }
+                }
+                showSelecionarDialog = false
                 timeParaAdicionar = null
+            }
+        )
+    }
+
+    // Dialog: Erro - Goleiro duplicado
+    if (showErroGoleiroDialog) {
+        AlertDialog(
+            onDismissRequest = { showErroGoleiroDialog = false },
+            icon = {
+                Icon(
+                    Icons.Default.Error,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error
+                )
+            },
+            title = { Text("Erro ao adicionar jogador") },
+            text = { Text("Este time já possui um goleiro. Cada time pode ter apenas 1 goleiro.") },
+            confirmButton = {
+                Button(onClick = { showErroGoleiroDialog = false }) {
+                    Text("Entendi")
+                }
             }
         )
     }
 }
 
 /**
- * Card de time com botão para adicionar jogador
+ * Card compacto de time (menor, não ocupa tela toda)
  */
 @Composable
-private fun TimeCard(
+private fun TimeCardCompact(
     modifier: Modifier = Modifier,
     titulo: String,
     cor: androidx.compose.ui.graphics.Color,
+    jogadores: List<Jogador>,
     onAdicionarJogador: () -> Unit,
-    jogadoresDisponiveis: Int
+    onRemoverJogador: (Jogador) -> Unit,
+    onIniciarSessao: (() -> Unit)?
 ) {
     Card(
         modifier = modifier,
@@ -254,52 +364,73 @@ private fun TimeCard(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+                .padding(16.dp)
         ) {
-            Text(
-                titulo,
-                style = MaterialTheme.typography.titleLarge
-            )
-
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                if (jogadoresDisponiveis >= 22) {
-                    Text(
-                        "Pronto para formar time",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                } else {
-                    Text(
-                        "Aguardando jogadores...",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    Text(
-                        "Faltam ${22 - jogadoresDisponiveis}",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
+                Text(
+                    titulo,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    "${jogadores.size}/11",
+                    style = MaterialTheme.typography.titleLarge
+                )
+            }
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Botão adicionar
+            if (jogadores.size < 11) {
                 Button(
                     onClick = onAdicionarJogador,
-                    modifier = Modifier.fillMaxWidth(0.7f)
+                    modifier = Modifier.fillMaxWidth()
                 ) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text("Adicionar Jogador")
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            // Lista de jogadores
+            if (jogadores.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Nenhum jogador", style = MaterialTheme.typography.bodyMedium)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(
+                        items = jogadores,
+                        key = { it.id }
+                    ) { jogador ->
+                        JogadorNoTimeItemCompact(
+                            jogador = jogador,
+                            onRemover = { onRemoverJogador(jogador) }
+                        )
+                    }
                 }
             }
 
-            if (jogadoresDisponiveis >= 22) {
+            // Botão iniciar sessão
+            if (onIniciarSessao != null) {
+                Spacer(modifier = Modifier.height(12.dp))
                 Button(
-                    onClick = { /* TODO: Iniciar sessão */ },
-                    modifier = Modifier.fillMaxWidth(0.7f)
+                    onClick = onIniciarSessao,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Iniciar Sessão")
                 }
-            } else {
-                Spacer(modifier = Modifier.height(48.dp))
             }
         }
     }
@@ -343,6 +474,58 @@ private fun JogadorItemCompact(jogador: Jogador) {
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                     style = MaterialTheme.typography.labelLarge
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Item de jogador dentro do time (com botão remover)
+ */
+@Composable
+private fun JogadorNoTimeItemCompact(
+    jogador: Jogador,
+    onRemover: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (jogador.isPosicaoGoleiro) "[GOL] ${jogador.nome}" else jogador.nome,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "#${jogador.numeroCamisa}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                IconButton(
+                    onClick = onRemover,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Remover",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }
