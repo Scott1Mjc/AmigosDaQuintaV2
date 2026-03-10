@@ -11,59 +11,32 @@ import com.example.amigosdaquinta.data.local.entity.TimeColor
 import com.example.amigosdaquinta.data.model.JogadorNaFila
 import com.example.amigosdaquinta.data.model.SessaoJogos
 import com.example.amigosdaquinta.data.repository.JogoRepository
+import com.example.amigosdaquinta.data.repository.ParticipacaoRepository
 import com.example.amigosdaquinta.data.repository.PresencaRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/**
- * ViewModel responsável pelo gerenciamento da sessão de jogos.
- *
- * Funcionalidades principais:
- * - Gerenciar lista de presença
- * - Criar e finalizar jogos
- * - Controlar placar e duração
- * - Gerenciar times e participações
- * - Controlar fluxo entre jogos (vencedor permanece, etc)
- *
- * Regras de negócio implementadas:
- * - 1º jogo: Formação manual
- * - Demais jogos: Formação automática por ordem de chegada
- * - Time vencedor permanece (se não jogou 2x consecutivas)
- * - Se time vencer 2x seguidas: sai obrigatoriamente
- * - Se empate: ambos os times saem
- * - Goleiros podem jogar mais de 2x (exceção por falta de goleiros)
- *
- * @property jogoRepository Repository para gerenciar jogos
- * @property presencaRepository Repository para gerenciar presenças
- */
 class SessaoViewModel(
     private val jogoRepository: JogoRepository,
+    private val participacaoRepository: ParticipacaoRepository,
     private val presencaRepository: PresencaRepository
 ) : ViewModel() {
 
-    // Controle de numeração de jogos
-    private val _numeroProximoJogo = MutableStateFlow(2)
-    val numeroProximoJogo: StateFlow<Int> = _numeroProximoJogo.asStateFlow()
+    companion object {
+        private const val TAG = "SessaoViewModel"
+    }
 
-    // Contador de jogos consecutivos do time atual em campo
-    private val _jogosConsecutivosTimeAtual = MutableStateFlow(0)
-    val jogosConsecutivosTimeAtual: StateFlow<Int> = _jogosConsecutivosTimeAtual.asStateFlow()
-
-    // Sessão atual
     private val _sessaoAtual = MutableStateFlow<SessaoJogos?>(null)
     val sessaoAtual: StateFlow<SessaoJogos?> = _sessaoAtual.asStateFlow()
 
-    // Lista de presença (ordem de chegada)
     private val _listaPresenca = MutableStateFlow<List<Pair<Jogador, Long>>>(emptyList())
     val listaPresenca: StateFlow<List<Pair<Jogador, Long>>> = _listaPresenca.asStateFlow()
 
-    // Fila de espera
     private val _filaEspera = MutableStateFlow<List<JogadorNaFila>>(emptyList())
     val filaEspera: StateFlow<List<JogadorNaFila>> = _filaEspera.asStateFlow()
 
-    // Jogo atual
     private val _jogoAtualId = MutableStateFlow<Long?>(null)
     val jogoAtualId: StateFlow<Long?> = _jogoAtualId.asStateFlow()
 
@@ -73,89 +46,85 @@ class SessaoViewModel(
     private val _timeVermelhoAtual = MutableStateFlow<List<Jogador>>(emptyList())
     val timeVermelhoAtual: StateFlow<List<Jogador>> = _timeVermelhoAtual.asStateFlow()
 
-    // Placar
     private val _placarBranco = MutableStateFlow(0)
     val placarBranco: StateFlow<Int> = _placarBranco.asStateFlow()
 
     private val _placarVermelho = MutableStateFlow(0)
     val placarVermelho: StateFlow<Int> = _placarVermelho.asStateFlow()
 
-    // Controle de vencedor (para próximo jogo)
+    private val _numeroDoProximoJogo = MutableStateFlow(1)
+    val numeroDoProximoJogo: StateFlow<Int> = _numeroDoProximoJogo.asStateFlow()
+
     private val _vencedorUltimoJogo = MutableStateFlow<TimeColor?>(null)
     val vencedorUltimoJogo: StateFlow<TimeColor?> = _vencedorUltimoJogo.asStateFlow()
 
     private val _jogadoresUltimoTimeGanhador = MutableStateFlow<List<Jogador>>(emptyList())
     val jogadoresUltimoTimeGanhador: StateFlow<List<Jogador>> = _jogadoresUltimoTimeGanhador.asStateFlow()
 
-    /**
-     * Inicializa uma nova sessão de jogos para o dia.
-     * Limpa todos os dados da sessão anterior.
-     */
-    fun iniciarNovoDia() {
-        viewModelScope.launch {
-            val hoje = System.currentTimeMillis()
-            _sessaoAtual.value = SessaoJogos(
-                data = hoje,
-                jogos = emptyList(),
-                jogoAtual = null,
-                filaEspera = emptyList(),
-                totalPresentes = 0
-            )
-            _listaPresenca.value = emptyList()
-            _vencedorUltimoJogo.value = null
-            _jogadoresUltimoTimeGanhador.value = emptyList()
-            _jogosConsecutivosTimeAtual.value = 0
-            Log.d(TAG, "Nova sessão iniciada")
-        }
+    private val _jogosConsecutivosTimeAtual = MutableStateFlow(0)
+    val jogosConsecutivosTimeAtual: StateFlow<Int> = _jogosConsecutivosTimeAtual.asStateFlow()
+
+    private val _duracaoJogoAtualMinutos = MutableStateFlow(30)
+    val duracaoJogoAtualMinutos: StateFlow<Int> = _duracaoJogoAtualMinutos.asStateFlow()
+
+    private val _timestampInicioJogo = MutableStateFlow<Long?>(null)
+
+    private fun atualizarDuracaoJogo() {
+        _duracaoJogoAtualMinutos.value = if (_numeroDoProximoJogo.value == 1) 30 else 15
     }
 
-    /**
-     * Adiciona um jogador à lista de presença.
-     * Registra o horário de chegada automaticamente.
-     *
-     * @param jogador Jogador a ser adicionado
-     */
     fun adicionarAListaPresenca(jogador: Jogador) {
         viewModelScope.launch {
-            val horarioChegada = System.currentTimeMillis()
-            _listaPresenca.value = _listaPresenca.value + Pair(jogador, horarioChegada)
-            presencaRepository.registrarPresenca(jogador.id, horarioChegada)
-            Log.d(TAG, "Jogador ${jogador.nome} adicionado à lista de presença")
+            try {
+                val jaExiste = _listaPresenca.value.any { it.first.id == jogador.id }
+                if (!jaExiste) {
+                    val horarioChegada = System.currentTimeMillis()
+                    _listaPresenca.value = _listaPresenca.value + Pair(jogador, horarioChegada)
+                    presencaRepository.registrarPresenca(jogador.id, horarioChegada)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Erro ao adicionar jogador", e)
+            }
         }
     }
 
-    /**
-     * Remove um jogador da lista de presença.
-     *
-     * @param jogadorId ID do jogador a ser removido
-     */
+    fun rotacionarJogadores(jogadores: List<Jogador>) {
+        val currentList = _listaPresenca.value.toMutableList()
+        jogadores.forEach { jogador ->
+            val index = currentList.indexOfFirst { it.first.id == jogador.id }
+            if (index != -1) {
+                val item = currentList.removeAt(index)
+                // Ao re-adicionar no fim, atualizamos o timestamp para o final da fila
+                currentList.add(item.first to System.currentTimeMillis())
+            }
+        }
+        _listaPresenca.value = currentList
+    }
+
     fun removerDaListaPresenca(jogadorId: Long) {
         viewModelScope.launch {
             _listaPresenca.value = _listaPresenca.value.filter { it.first.id != jogadorId }
-            Log.d(TAG, "Jogador ID $jogadorId removido da lista de presença")
         }
     }
 
-    /**
-     * Cria um novo jogo e registra as participações.
-     *
-     * NOTA: Duração foi removida - jogos não têm limite de tempo fixo.
-     *
-     * @param timeBranco Lista de jogadores do time branco
-     * @param timeVermelho Lista de jogadores do time vermelho
-     */
-    fun criarJogo(
-        timeBranco: List<Jogador>,
-        timeVermelho: List<Jogador>
-    ) {
+    fun criarJogo(timeBranco: List<Jogador>, timeVermelho: List<Jogador>) {
         viewModelScope.launch {
             try {
-                val numeroJogo = if (_jogoAtualId.value == null) 1 else _numeroProximoJogo.value
+                // Garantir que todos os 22 estão na lista de presença
+                (timeBranco + timeVermelho).forEach { jogador ->
+                    if (!_listaPresenca.value.any { it.first.id == jogador.id }) {
+                        adicionarAListaPresenca(jogador)
+                    }
+                }
+
+                val numeroJogo = _numeroDoProximoJogo.value
+                atualizarDuracaoJogo()
+                _timestampInicioJogo.value = System.currentTimeMillis()
 
                 val jogo = Jogo(
                     data = System.currentTimeMillis(),
                     numeroJogo = numeroJogo,
-                    duracao = 0, // Campo mantido no banco mas não usado
+                    duracao = _duracaoJogoAtualMinutos.value,
                     status = StatusJogo.EM_ANDAMENTO,
                     placarBranco = 0,
                     placarVermelho = 0
@@ -164,190 +133,116 @@ class SessaoViewModel(
                 val jogoId = jogoRepository.criarJogo(jogo)
                 _jogoAtualId.value = jogoId
 
-                // Registrar participações
                 val participacoes = mutableListOf<Participacao>()
-                timeBranco.forEach { jogador ->
-                    participacoes.add(
-                        Participacao(
-                            jogadorId = jogador.id,
-                            jogoId = jogoId,
-                            time = TimeColor.BRANCO
-                        )
-                    )
-                }
-                timeVermelho.forEach { jogador ->
-                    participacoes.add(
-                        Participacao(
-                            jogadorId = jogador.id,
-                            jogoId = jogoId,
-                            time = TimeColor.VERMELHO
-                        )
-                    )
-                }
-
+                timeBranco.forEach { participacoes.add(Participacao(jogadorId = it.id, jogoId = jogoId, time = TimeColor.BRANCO)) }
+                timeVermelho.forEach { participacoes.add(Participacao(jogadorId = it.id, jogoId = jogoId, time = TimeColor.VERMELHO)) }
                 jogoRepository.adicionarParticipacoes(participacoes)
 
-                // Atualizar estado
                 _timeBrancoAtual.value = timeBranco
                 _timeVermelhoAtual.value = timeVermelho
                 _placarBranco.value = 0
                 _placarVermelho.value = 0
-
-                // Incrementar contador para próximo jogo
-                _numeroProximoJogo.value = numeroJogo + 1
-
-                Log.d(TAG, "Jogo $numeroJogo criado (ID: $jogoId)")
             } catch (e: Exception) {
                 Log.e(TAG, "Erro ao criar jogo", e)
             }
         }
     }
 
-    /**
-     * Finaliza o jogo atual e salva o resultado.
-     *
-     * NOVA LÓGICA:
-     * - Se vencedor: incrementa contador de jogos consecutivos
-     * - Se vencedor já jogou 2x: força saída (ambos times saem)
-     * - Se empate: ambos times saem (contador reseta)
-     *
-     * @param vencedor Time vencedor (BRANCO, VERMELHO ou null para empate)
-     */
     fun finalizarJogo(vencedor: TimeColor?) {
         viewModelScope.launch {
             try {
                 val jogoId = _jogoAtualId.value ?: return@launch
-
-                jogoRepository.finalizarJogo(
-                    id = jogoId,
-                    vencedor = vencedor
-                )
-
+                
+                // Persistir placar final antes de finalizar o status
                 jogoRepository.atualizarJogo(
-                    Jogo(
-                        id = jogoId,
-                        data = System.currentTimeMillis(),
-                        numeroJogo = _numeroProximoJogo.value - 1,
-                        duracao = 0,
-                        status = StatusJogo.FINALIZADO,
-                        timeVencedor = vencedor,
+                    jogoRepository.obterPorId(jogoId)!!.copy(
                         placarBranco = _placarBranco.value,
                         placarVermelho = _placarVermelho.value
                     )
                 )
+                
+                jogoRepository.finalizarJogo(id = jogoId, vencedor = vencedor)
 
-                // NOVA LÓGICA: Controle de jogos consecutivos
+                // Lógica de Rotação (quem sai vai pro fim da fila)
+                val jogadoresSaindo = mutableListOf<Jogador>()
+                
                 when (vencedor) {
                     TimeColor.BRANCO -> {
                         _jogosConsecutivosTimeAtual.value++
-
+                        jogadoresSaindo.addAll(_timeVermelhoAtual.value)
                         if (_jogosConsecutivosTimeAtual.value >= 2) {
-                            // Time branco jogou 2x seguidas: SAI
+                            jogadoresSaindo.addAll(_timeBrancoAtual.value)
                             _jogadoresUltimoTimeGanhador.value = emptyList()
                             _vencedorUltimoJogo.value = null
                             _jogosConsecutivosTimeAtual.value = 0
-                            Log.d(TAG, "Time BRANCO jogou 2x consecutivas - ambos saem")
                         } else {
-                            // Time branco permanece
                             _jogadoresUltimoTimeGanhador.value = _timeBrancoAtual.value
                             _vencedorUltimoJogo.value = TimeColor.BRANCO
-                            Log.d(TAG, "Time BRANCO venceu - permanece em campo")
                         }
                     }
-
                     TimeColor.VERMELHO -> {
-                        // Se time vermelho vencer, reseta contador e ele fica
+                        jogadoresSaindo.addAll(_timeBrancoAtual.value)
                         _jogosConsecutivosTimeAtual.value = 1
                         _jogadoresUltimoTimeGanhador.value = _timeVermelhoAtual.value
                         _vencedorUltimoJogo.value = TimeColor.VERMELHO
-                        Log.d(TAG, "Time VERMELHO venceu - permanece em campo")
                     }
-
                     null -> {
-                        // EMPATE: ambos saem
+                        jogadoresSaindo.addAll(_timeBrancoAtual.value)
+                        jogadoresSaindo.addAll(_timeVermelhoAtual.value)
                         _jogadoresUltimoTimeGanhador.value = emptyList()
                         _vencedorUltimoJogo.value = null
                         _jogosConsecutivosTimeAtual.value = 0
-                        Log.d(TAG, "EMPATE - ambos os times saem")
                     }
                 }
 
+                // Move os perdedores (ou todos se empate/limite) para o fim da lista de presença
+                rotacionarJogadores(jogadoresSaindo)
+
+                _numeroDoProximoJogo.value++
+                atualizarDuracaoJogo()
             } catch (e: Exception) {
                 Log.e(TAG, "Erro ao finalizar jogo", e)
             }
         }
     }
 
-    /**
-     * Incrementa o placar do time branco em 1.
-     */
     fun incrementarPlacarBranco() {
         _placarBranco.value++
+        viewModelScope.launch {
+            _jogoAtualId.value?.let { id ->
+                jogoRepository.registrarGol(id, TimeColor.BRANCO)
+            }
+        }
     }
 
-    /**
-     * Incrementa o placar do time vermelho em 1.
-     */
     fun incrementarPlacarVermelho() {
         _placarVermelho.value++
+        viewModelScope.launch {
+            _jogoAtualId.value?.let { id ->
+                jogoRepository.registrarGol(id, TimeColor.VERMELHO)
+            }
+        }
     }
 
-    /**
-     * Limpa os dados do jogo atual, mantendo informações do vencedor.
-     * Usado ao passar para o próximo jogo.
-     */
+    fun iniciarNovoDia() {
+        _sessaoAtual.value = SessaoJogos(data = System.currentTimeMillis())
+        limparSessaoCompleta()
+    }
+
     fun limparJogoAtual() {
         _jogoAtualId.value = null
         _timeBrancoAtual.value = emptyList()
         _timeVermelhoAtual.value = emptyList()
         _placarBranco.value = 0
         _placarVermelho.value = 0
-        Log.d(TAG, "Dados do jogo atual limpos")
     }
 
-    /**
-     * Limpa TODOS os dados da sessão.
-     * Usado ao encerrar a sessão.
-     */
     fun limparSessaoCompleta() {
-        _jogoAtualId.value = null
-        _timeBrancoAtual.value = emptyList()
-        _timeVermelhoAtual.value = emptyList()
-        _placarBranco.value = 0
-        _placarVermelho.value = 0
-        _vencedorUltimoJogo.value = null
-        _jogadoresUltimoTimeGanhador.value = emptyList()
-        _numeroProximoJogo.value = 2
+        _listaPresenca.value = emptyList()
+        _numeroDoProximoJogo.value = 1
         _jogosConsecutivosTimeAtual.value = 0
-        Log.d(TAG, "Sessão completa encerrada e resetada")
-    }
-
-    /**
-     * Marca um jogador como inativo e remove da lista/fila.
-     *
-     * @param jogadorId ID do jogador a ser marcado como inativo
-     */
-    fun marcarJogadorComoInativo(jogadorId: Long) {
-        viewModelScope.launch {
-            _listaPresenca.value = _listaPresenca.value.filter { it.first.id != jogadorId }
-            _filaEspera.value = _filaEspera.value.filter { it.jogador.id != jogadorId }
-            Log.d(TAG, "Jogador ID $jogadorId marcado como inativo")
-        }
-    }
-
-    /**
-     * Registra um gol para um dos times.
-     *
-     * @param time Time que marcou o gol
-     */
-    fun registrarGol(time: TimeColor) {
-        viewModelScope.launch {
-            val jogoAtual = _sessaoAtual.value?.jogoAtual ?: return@launch
-            jogoRepository.registrarGol(jogoAtual.id, time)
-        }
-    }
-
-    companion object {
-        private const val TAG = "SessaoViewModel"
+        _jogadoresUltimoTimeGanhador.value = emptyList()
+        _vencedorUltimoJogo.value = null
+        limparJogoAtual()
     }
 }

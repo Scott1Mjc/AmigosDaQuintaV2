@@ -22,5 +22,9 @@ data class Jogador(
     val numeroCamisa: Int,
     val isPosicaoGoleiro: Boolean = false,
     val ativo: Boolean = true,
-    val foto: String? = null
-)
+) {
+    init {
+        require(nome.isNotBlank()) { "Nome não pode ser vazio" }
+        require(numeroCamisa in 0..999) { "Número da camisa deve estar entre 0 e 999" }
+    }
+}

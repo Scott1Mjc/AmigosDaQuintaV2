@@ -40,7 +40,7 @@ class MainActivity : ComponentActivity() {
     private val participacaoRepository by lazy { ParticipacaoRepository(database.participacaoDao()) }
 
     private val factory by lazy {
-        AppViewModelFactory(jogadorRepository, jogoRepository, presencaRepository, participacaoRepository)
+        AppViewModelFactory(jogadorRepository, jogoRepository, participacaoRepository, presencaRepository)
     }
 
     private val jogadoresViewModel: JogadoresViewModel by viewModels { factory }

@@ -9,7 +9,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.example.amigosdaquinta.data.local.entity.TimeColor
-import com.example.amigosdaquinta.ui.screens.debug.DebugScreen
 import com.example.amigosdaquinta.ui.screens.formacao.FormacaoAutomaticaScreen
 import com.example.amigosdaquinta.ui.screens.formacao.FormacaoManualScreen
 import com.example.amigosdaquinta.ui.screens.history.DetalhesJogoScreen
@@ -26,16 +25,6 @@ import com.example.amigosdaquinta.viewmodel.SessaoViewModel
 
 /**
  * Define todas as rotas de navegacao do app e o mapeamento entre rota e Composable.
- *
- * O estado compartilhado entre telas (times, placar, vencedor) é lido diretamente
- * dos ViewModels aqui, evitando passagem de dados via argumentos de rota para objetos complexos.
- * Apenas tipos primitivos (Long, String) sao trafegados como argumentos de rota.
- *
- * Fluxo principal de navegacao:
- * Home -> Presenca -> FormacaoManual -> Jogo -> Resultado
- *
- * A rota [Screen.FormacaoManual] decide internamente se exibe formacao manual ou automatica,
- * com base no total de jogadores presentes (threshold: 33).
  */
 
 sealed class Screen(val route: String) {
@@ -54,7 +43,6 @@ sealed class Screen(val route: String) {
     object EstatisticasJogador : Screen("estatisticas/{jogadorId}") {
         fun createRoute(jogadorId: Long) = "estatisticas/$jogadorId"
     }
-    object Debug : Screen("debug")
     object GerenciarJogadores : Screen("gerenciar_jogadores")
 }
 
@@ -88,9 +76,6 @@ fun NavGraph(
                 },
                 onNavigateToHistorico = {
                     navController.navigate(Screen.Historico.route)
-                },
-                onNavigateToDebug = {
-                    navController.navigate(Screen.Debug.route)
                 },
                 onNavigateToGerenciarJogadores = {
                     navController.navigate(Screen.GerenciarJogadores.route)
@@ -163,6 +148,7 @@ fun NavGraph(
         composable(Screen.Jogo.route) {
             JogoScreen(
                 sessaoViewModel = sessaoViewModel,
+                jogadoresViewModel = jogadoresViewModel,
                 timeBranco = timeBranco,
                 timeVermelho = timeVermelho,
                 onNavigateBack = {
@@ -195,7 +181,6 @@ fun NavGraph(
                 placarBranco = placarBranco,
                 placarVermelho = placarVermelho,
                 onProximoJogo = {
-                    sessaoViewModel.limparJogoAtual()
                     navController.navigate(Screen.FormacaoAutomatica.route) {
                         popUpTo(Screen.Presenca.route)
                     }
@@ -250,17 +235,6 @@ fun NavGraph(
             EstatisticasJogadorScreen(
                 jogadorId = jogadorId,
                 viewModel = historicoViewModel,
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
-            )
-        }
-
-        // Debug
-        composable(Screen.Debug.route) {
-            DebugScreen(
-                jogadoresViewModel = jogadoresViewModel,
-                sessaoViewModel = sessaoViewModel,
                 onNavigateBack = {
                     navController.popBackStack()
                 }

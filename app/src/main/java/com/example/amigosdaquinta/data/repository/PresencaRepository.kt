@@ -2,7 +2,9 @@ package com.example.amigosdaquinta.data.repository
 
 import com.example.amigosdaquinta.data.local.dao.PresencaDao
 import com.example.amigosdaquinta.data.local.entity.PresencaDia
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 import java.util.Calendar
 
 /**
@@ -66,6 +68,17 @@ class PresencaRepository(private val presencaDao: PresencaDao) {
 
         return presencaDao.inserir(presenca)
     }
+
+    /**
+     * Remove todos os registros de presença do banco.
+     * Usado ao resetar sessão para novo dia.
+     */
+    suspend fun limparTodasPresencas() {
+        withContext(Dispatchers.IO) {
+            presencaDao.deleteAll()
+        }
+    }
+
 
     suspend fun marcarComoInativo(presencaId: Long) =
         presencaDao.marcarComoInativo(presencaId)

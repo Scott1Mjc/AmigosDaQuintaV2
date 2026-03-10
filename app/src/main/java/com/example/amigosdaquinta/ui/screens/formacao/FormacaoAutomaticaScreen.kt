@@ -33,7 +33,7 @@ fun FormacaoAutomaticaScreen(
     onNavigateBack: () -> Unit,
     onIniciarJogo: () -> Unit
 ) {
-    val numeroProximoJogo by sessaoViewModel.numeroProximoJogo.collectAsState()
+    val numeroJogo by sessaoViewModel.numeroDoProximoJogo.collectAsState()
     val jogosConsecutivos by sessaoViewModel.jogosConsecutivosTimeAtual.collectAsState()
 
     val totalPresentes = filaEspera.size
@@ -112,7 +112,7 @@ fun FormacaoAutomaticaScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text("Formar ${numeroProximoJogo}º Jogo")
+                    Text("Formar ${numeroJogo}º Jogo")
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
@@ -133,7 +133,7 @@ fun FormacaoAutomaticaScreen(
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        "Formação Automática - ${numeroProximoJogo}º Jogo",
+                        "Formação Automática - ${numeroJogo}º Jogo",
                         style = MaterialTheme.typography.titleLarge
                     )
                     Spacer(modifier = Modifier.height(8.dp))

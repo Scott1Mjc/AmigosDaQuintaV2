@@ -21,8 +21,6 @@ import com.example.amigosdaquinta.viewmodel.SessaoViewModel
  * a rotações de tela sem perder o progresso da montagem.
  *
  * Ao tocar em voltar com progresso não salvo, um dialog de confirmação é exibido.
- *
- * TODO: Exibir feedback visual (Snackbar) quando o usuário tentar adicionar um segundo goleiro — atualmente a tentativa é silenciosamente ignorada.
  */
 
 @OptIn(ExperimentalMaterial3Api::class)

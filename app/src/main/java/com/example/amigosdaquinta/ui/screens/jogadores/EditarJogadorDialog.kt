@@ -55,14 +55,14 @@ fun EditarJogadorDialog(
                     onValueChange = {
                         numero = it.filter { char -> char.isDigit() }
                         val num = numero.toIntOrNull()
-                        erroNumero = num == null || num < 1 || num > 99
+                        erroNumero = num == null || num < 1 || num > 999
                     },
                     label = { Text("Número da Camisa") },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     isError = erroNumero,
                     supportingText = if (erroNumero) {
-                        { Text("Número deve estar entre 1 e 99") }
+                        { Text("Número deve estar entre 1 e 999") }
                     } else null,
                     singleLine = true
                 )
@@ -98,7 +98,7 @@ fun EditarJogadorDialog(
             Button(
                 onClick = {
                     val num = numero.toIntOrNull()
-                    if (nome.isNotBlank() && num != null && num in 1..99) {
+                    if (nome.isNotBlank() && num != null && num in 1..999) {
                         onConfirm(nome.trim(), num, isGoleiro)
                     }
                 },

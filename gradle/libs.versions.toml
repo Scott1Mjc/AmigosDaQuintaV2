@@ -1,8 +1,8 @@
 [versions]
 # Android & Kotlin
-agp = "8.5.2"
-kotlin = "1.9.24"
-ksp = "1.9.24-1.0.20"
+agp = "8.7.3"
+kotlin = "2.1.0"
+ksp = "2.1.0-1.0.29"
 
 # AndroidX Core
 coreKtx = "1.13.1"
@@ -11,7 +11,7 @@ activityCompose = "1.9.1"
 
 # Compose
 composeBom = "2024.09.00"
-composeCompiler = "1.5.14"
+composeCompiler = "1.6.11"
 
 # Navigation
 navigationCompose = "2.7.7"
@@ -26,6 +26,7 @@ coroutines = "1.8.1"
 junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
+foundation = "1.10.4"
 
 [libraries]
 # Core
@@ -62,8 +63,10 @@ kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "foundation" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
