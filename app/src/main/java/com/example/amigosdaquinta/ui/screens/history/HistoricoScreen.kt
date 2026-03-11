@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -21,7 +22,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * Tela de histórico de jogos.
+ * Tela de histórico de jogos com cores atualizadas para cinza claro e texto preto.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,17 +58,20 @@ fun HistoricoScreen(
                 .padding(padding)
                 .padding(16.dp)
         ) {
-            // Card de informação do histórico - Full Width (Voltando ao anterior)
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
+            ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         text = "Histórico de Jogos",
-                        style = MaterialTheme.typography.titleMedium
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.Black
                     )
                     Text(
                         text = "Últimos 30 dias",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Color.DarkGray
                     )
                 }
             }
@@ -79,7 +83,7 @@ fun HistoricoScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Nenhum jogo registrado nos últimos 30 dias")
+                    Text("Nenhum jogo registrado nos últimos 30 dias", color = Color.Black)
                 }
             } else {
                 LazyColumn(
@@ -112,7 +116,7 @@ private fun JogoHistoricoItem(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        color = Color(0xFFEEEEEE)
     ) {
         Column(
             modifier = Modifier
@@ -124,17 +128,20 @@ private fun JogoHistoricoItem(
                 Text(
                     text = "${jogo.numeroJogo} Jogo",
                     style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.align(Alignment.CenterStart)
+                    modifier = Modifier.align(Alignment.CenterStart),
+                    color = Color.Black
                 )
                 Text(
                     text = dateFormat.format(Date(jogo.data)),
                     style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.align(Alignment.Center)
+                    modifier = Modifier.align(Alignment.Center),
+                    color = Color.Black
                 )
                 Text(
                     text = timeFormat.format(Date(jogo.data)),
                     style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.align(Alignment.CenterEnd)
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                    color = Color.Black
                 )
             }
 
@@ -150,7 +157,8 @@ private fun JogoHistoricoItem(
                     "BRANCO",
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    color = Color.DarkGray
                 )
 
                 Text(
@@ -158,14 +166,16 @@ private fun JogoHistoricoItem(
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    color = Color.Black
                 )
 
                 Text(
                     "VERMELHO",
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    color = Color.DarkGray
                 )
             }
 
@@ -185,13 +195,15 @@ private fun JogoHistoricoItem(
                 Text(
                     text = resultadoText,
                     style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.align(Alignment.CenterStart)
+                    modifier = Modifier.align(Alignment.CenterStart),
+                    color = Color.Black
                 )
 
                 Text(
                     text = "${jogo.duracao} min",
                     style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.align(Alignment.CenterEnd)
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                    color = Color.Black
                 )
             }
         }

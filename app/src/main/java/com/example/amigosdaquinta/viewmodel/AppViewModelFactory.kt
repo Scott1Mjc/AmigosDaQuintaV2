@@ -9,9 +9,6 @@ import com.example.amigosdaquinta.data.repository.PresencaRepository
 
 /**
  * Factory para criação de ViewModels com dependências.
- *
- * Responsável por instanciar ViewModels que requerem repositories
- * como parâmetros de construtor.
  */
 @Suppress("UNCHECKED_CAST")
 class AppViewModelFactory(
@@ -31,7 +28,8 @@ class AppViewModelFactory(
                 SessaoViewModel(
                     jogoRepository = jogoRepository,
                     participacaoRepository = participacaoRepository,
-                    presencaRepository = presencaRepository
+                    presencaRepository = presencaRepository,
+                    jogadorRepository = jogadorRepository
                 ) as T
             }
 

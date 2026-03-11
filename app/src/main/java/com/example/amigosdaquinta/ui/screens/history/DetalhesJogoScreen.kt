@@ -9,19 +9,20 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.amigosdaquinta.data.local.entity.Jogador
 import com.example.amigosdaquinta.data.local.entity.TimeColor
 import com.example.amigosdaquinta.viewmodel.HistoricoViewModel
+import com.example.amigosdaquinta.viewmodel.JogadorParticipacao
 import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * Tela de detalhes de uma partida especifica.
- *
- * Apresenta o placar final e as escalacoes de ambos os times lado a lado.
+ * Tela de detalhes de uma partida especifica com cores atualizadas.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,10 +68,10 @@ fun DetalhesJogoScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // CARD DE CABEÇALHO (PLACAR)
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
                 ) {
                     Column(
                         modifier = Modifier
@@ -78,7 +79,6 @@ fun DetalhesJogoScreen(
                             .padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Linha Superior: Numero, Data e Hora
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -87,24 +87,25 @@ fun DetalhesJogoScreen(
                             Text(
                                 text = "${jogo.numeroJogo} Jogo",
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
                             )
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(
                                     text = dateFormat.format(Date(jogo.data)),
-                                    style = MaterialTheme.typography.bodyMedium
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.Black
                                 )
                                 Text(
                                     text = timeFormat.format(Date(jogo.data)),
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = Color.DarkGray
                                 )
                             }
                         }
 
                         Spacer(modifier = Modifier.height(24.dp))
 
-                        // Placar central
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceEvenly,
@@ -113,28 +114,30 @@ fun DetalhesJogoScreen(
                             Text(
                                 "BRANCO",
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.DarkGray
                             )
                             Text(
                                 text = "${jogo.placarBranco} x ${jogo.placarVermelho}",
                                 style = MaterialTheme.typography.displayLarge,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 48.sp
+                                fontSize = 48.sp,
+                                color = Color.Black
                             )
                             Text(
                                 "VERMELHO",
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.DarkGray
                             )
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Resultado
                         val (textoVencedor, corVencedor) = when (jogo.timeVencedor) {
-                            TimeColor.BRANCO -> "Time Branco Venceu!" to MaterialTheme.colorScheme.primary
-                            TimeColor.VERMELHO -> "Time Vermelho Venceu!" to MaterialTheme.colorScheme.error
-                            null -> "Empate" to MaterialTheme.colorScheme.onSurface
+                            TimeColor.BRANCO -> "Time Branco Venceu!" to Color(0xFF1B5E20)
+                            TimeColor.VERMELHO -> "Time Vermelho Venceu!" to Color(0xFFB71C1C)
+                            null -> "Empate" to Color.Black
                         }
                         Text(
                             text = textoVencedor,
@@ -147,12 +150,11 @@ fun DetalhesJogoScreen(
                         Text(
                             text = "Duração: ${jogo.duracao} minutos",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = Color.DarkGray
                         )
                     }
                 }
 
-                // ESCALAÇÕES (Lado a Lado como na tela de Jogo)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -182,8 +184,8 @@ fun DetalhesJogoScreen(
 private fun TeamEscalacaoCard(
     modifier: Modifier = Modifier,
     titulo: String,
-    jogadores: List<Jogador>,
-    cor: androidx.compose.ui.graphics.Color
+    jogadores: List<JogadorParticipacao>,
+    cor: Color
 ) {
     Card(
         modifier = modifier.fillMaxHeight(),
@@ -204,11 +206,15 @@ private fun TeamEscalacaoCard(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(jogadores) { jogador ->
+                items(jogadores) { participacao ->
+                    val jogador = participacao.jogador
+                    val foiSubstituido = participacao.foiSubstituido
+                    val alphaValue = if (foiSubstituido) 0.5f else 1f
+
                     Surface(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().alpha(alphaValue),
                         shape = MaterialTheme.shapes.small,
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)
+                        color = if (foiSubstituido) Color.LightGray else Color.White
                     ) {
                         Row(
                             modifier = Modifier
@@ -218,14 +224,16 @@ private fun TeamEscalacaoCard(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = if (jogador.isPosicaoGoleiro) "[GOL] ${jogador.nome}" else jogador.nome,
+                                text = (if (jogador.isPosicaoGoleiro) "[GOL] " else "") + jogador.nome + (if (foiSubstituido) " (S)" else ""),
                                 style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f),
+                                color = Color.Black
                             )
                             Text(
                                 text = "#${jogador.numeroCamisa}",
                                 style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
                             )
                         }
                     }

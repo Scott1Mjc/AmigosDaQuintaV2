@@ -11,19 +11,32 @@ import com.example.amigosdaquinta.data.local.entity.Jogador
 
 /**
  * Dialog para editar dados de um jogador existente.
+ *
+ * Permite alterar:
+ * - Nome do jogador
+ * - Número da camisa (0 a 999)
+ * - Posição (Goleiro ou Linha)
+ *
+ * Validações:
+ * - Nome não pode ser vazio
+ * - Número deve estar entre 0 e 999
+ *
+ * @param jogador Jogador a ser editado
+ * @param onDismiss Callback ao fechar o dialog
+ * @param onConfirm Callback ao confirmar, retorna o jogador atualizado
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditarJogadorDialog(
     jogador: Jogador,
     onDismiss: () -> Unit,
-    onConfirm: (nome: String, numero: Int, isGoleiro: Boolean) -> Unit
+    onConfirm: (Jogador) -> Unit // ✅ RECEBE JOGADOR COMPLETO
 ) {
     var nome by remember { mutableStateOf(jogador.nome) }
     var numero by remember { mutableStateOf(jogador.numeroCamisa.toString()) }
-    var isGoleiro by remember { mutableStateOf(jogador.isPosicaoGoleiro) }
-    var erroNome by remember { mutableStateOf(false) }
-    var erroNumero by remember { mutableStateOf(false) }
+    var isPosicaoGoleiro by remember { mutableStateOf(jogador.isPosicaoGoleiro) }
+
+    var erroNome by remember { mutableStateOf<String?>(null) }
+    var erroNumero by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -31,78 +44,85 @@ fun EditarJogadorDialog(
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Campo: Nome
+                // Campo Nome
                 OutlinedTextField(
                     value = nome,
                     onValueChange = {
                         nome = it
-                        erroNome = it.isBlank()
+                        erroNome = null
                     },
                     label = { Text("Nome") },
                     modifier = Modifier.fillMaxWidth(),
-                    isError = erroNome,
-                    supportingText = if (erroNome) {
-                        { Text("Nome não pode ser vazio") }
-                    } else null,
-                    singleLine = true
+                    isError = erroNome != null,
+                    supportingText = erroNome?.let { { Text(it) } }
                 )
 
-                // Campo: Número da camisa
+                // Campo Número
                 OutlinedTextField(
                     value = numero,
                     onValueChange = {
-                        numero = it.filter { char -> char.isDigit() }
-                        val num = numero.toIntOrNull()
-                        erroNumero = num == null || num < 1 || num > 999
+                        // Aceitar apenas números
+                        if (it.isEmpty() || it.all { char -> char.isDigit() }) {
+                            numero = it
+                            erroNumero = null
+                        }
                     },
                     label = { Text("Número da Camisa") },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    isError = erroNumero,
-                    supportingText = if (erroNumero) {
-                        { Text("Número deve estar entre 1 e 999") }
-                    } else null,
-                    singleLine = true
+                    isError = erroNumero != null,
+                    supportingText = erroNumero?.let { { Text(it) } },
+                    placeholder = { Text("0 a 999") }
                 )
 
-                // Campo: Posição
-                Column {
-                    Text(
-                        "Posição",
-                        style = MaterialTheme.typography.labelMedium
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        FilterChip(
-                            selected = isGoleiro,
-                            onClick = { isGoleiro = true },
-                            label = { Text("Goleiro") },
-                            modifier = Modifier.weight(1f)
+                // Switch Posição
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            "Posição",
+                            style = MaterialTheme.typography.bodyLarge
                         )
-                        FilterChip(
-                            selected = !isGoleiro,
-                            onClick = { isGoleiro = false },
-                            label = { Text("Linha") },
-                            modifier = Modifier.weight(1f)
+                        Text(
+                            if (isPosicaoGoleiro) "Goleiro" else "Jogador de Linha",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    Switch(
+                        checked = isPosicaoGoleiro,
+                        onCheckedChange = { isPosicaoGoleiro = it }
+                    )
                 }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    val num = numero.toIntOrNull()
-                    if (nome.isNotBlank() && num != null && num in 1..999) {
-                        onConfirm(nome.trim(), num, isGoleiro)
+                    // Validação
+                    val nomeValido = nome.isNotBlank()
+                    val numeroInt = numero.toIntOrNull()
+                    val numeroValido = numeroInt != null && numeroInt in 0..999
+
+                    erroNome = if (!nomeValido) "Nome não pode ser vazio" else null
+                    erroNumero = if (!numeroValido) "Número deve estar entre 0 e 999" else null
+
+                    if (nomeValido && numeroValido) {
+                        // ✅ RETORNA JOGADOR ATUALIZADO
+                        onConfirm(
+                            jogador.copy(
+                                nome = nome.trim(),
+                                numeroCamisa = numeroInt!!,
+                                isPosicaoGoleiro = isPosicaoGoleiro
+                            )
+                        )
                     }
-                },
-                enabled = nome.isNotBlank() && !erroNumero
+                }
             ) {
                 Text("Salvar")
             }

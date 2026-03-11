@@ -59,23 +59,6 @@ fun DebugScreen(
 
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(text = "Popular Banco de Dados", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        text = "Adiciona 40 jogadores de teste (5 goleiros + 35 linha)",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(
-                        onClick = { jogadoresViewModel.popularBancoComJogadoresDeTeste() },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Adicionar 40 Jogadores")
-                    }
-                }
-            }
-
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
                     Text(text = "Lista de Presenca", style = MaterialTheme.typography.titleMedium)
                     Text(
                         text = "Adiciona todos os jogadores cadastrados a lista automaticamente",

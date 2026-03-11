@@ -1,22 +1,16 @@
 package com.example.amigosdaquinta.ui.screens.home
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.amigosdaquinta.data.local.entity.Jogador
@@ -41,11 +35,18 @@ fun HomeScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val listaPresenca by sessaoViewModel.listaPresenca.collectAsState()
 
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+
     var timeBranco by rememberSaveable { mutableStateOf<List<Jogador>>(emptyList()) }
     var timeVermelho by rememberSaveable { mutableStateOf<List<Jogador>>(emptyList()) }
     var showSelecionarDialog by remember { mutableStateOf(false) }
     var timeParaAdicionar by remember { mutableStateOf<String?>(null) }
     var showFabMenu by remember { mutableStateOf(false) }
+
+    // Atualiza busca quando o texto muda
+    LaunchedEffect(searchQuery) {
+        viewModel.buscarPorNome(searchQuery)
+    }
 
     // ✅ ORDENAÇÃO: Não confirmados (topo) -> Confirmados (baixo) + Número Decrescente
     val jogadoresOrdenados by remember(jogadores, listaPresenca) {
@@ -66,18 +67,7 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Text(
-                        "Gerenciador de Futebol",
-                        modifier = Modifier.pointerInput(Unit) {
-                            detectTapGestures(
-                                onLongPress = {
-                                    viewModel.popularBancoComJogadoresDeTeste()
-                                }
-                            )
-                        }
-                    )
-                }
+                title = { Text("Gerenciador de Futebol") }
             )
         },
         floatingActionButton = {
@@ -166,7 +156,7 @@ fun HomeScreen(
             // COLUNA 1: Confirmar Chegada
             Card(
                 modifier = Modifier
-                    .width(300.dp)
+                    .width(320.dp)
                     .fillMaxHeight()
             ) {
                 Column(
@@ -177,6 +167,26 @@ fun HomeScreen(
                     Text(
                         "Confirmar Chegada",
                         style = MaterialTheme.typography.titleLarge
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // BARRA DE PESQUISA INTEGRADA NA COLUNA
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Pesquisar por nome...") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Clear, contentDescription = "Limpar")
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.medium
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -192,6 +202,13 @@ fun HomeScreen(
                     if (isLoading) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator()
+                        }
+                    } else if (jogadoresOrdenados.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(
+                                text = if (searchQuery.isEmpty()) "Carregando jogadores..." else "Nenhum jogador encontrado",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                         }
                     } else {
                         LazyColumn(

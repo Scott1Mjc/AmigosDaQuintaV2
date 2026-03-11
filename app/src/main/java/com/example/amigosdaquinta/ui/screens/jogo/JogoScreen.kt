@@ -5,20 +5,23 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.amigosdaquinta.data.local.entity.Jogador
 import com.example.amigosdaquinta.data.local.entity.TimeColor
+import com.example.amigosdaquinta.ui.navigation.Screen
 import com.example.amigosdaquinta.viewmodel.JogadoresViewModel
 import com.example.amigosdaquinta.viewmodel.SessaoViewModel
 
-/**
- * Tela principal de uma partida em andamento.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JogoScreen(
@@ -29,21 +32,40 @@ fun JogoScreen(
     onNavigateBack: () -> Unit,
     onFinalizarJogo: (TimeColor?) -> Unit
 ) {
-    // Estados observados do ViewModel
     val placarBranco by sessaoViewModel.placarBranco.collectAsState()
     val placarVermelho by sessaoViewModel.placarVermelho.collectAsState()
     val jogadores by jogadoresViewModel.jogadores.collectAsState()
     val listaPresenca by sessaoViewModel.listaPresenca.collectAsState()
     val duracaoMinutos by sessaoViewModel.duracaoJogoAtualMinutos.collectAsState()
+    val jogadoresSubstituidosIds by sessaoViewModel.jogadoresSubstituidosIds.collectAsState()
 
-    // Estados locais de controle de diálogos
     var showFinalizarDialog by remember { mutableStateOf(false) }
+    var showExitDialog by remember { mutableStateOf(false) }
     var finalizacaoAutomatica by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var showSubstituicaoDialog by remember { mutableStateOf(false) }
+    var jogadorParaSubstituir by remember { mutableStateOf<Pair<Jogador, TimeColor>?>(null) }
 
-    // ✅ CORREÇÃO: Ordenação decrescente por número da camisa e SEM mover selecionados para o fim
-    val jogadoresOrdenados by remember(jogadores) {
+    val jogadoresFiltrados by remember(jogadores, listaPresenca, searchQuery, jogadoresSubstituidosIds) {
         derivedStateOf {
-            jogadores.sortedByDescending { it.numeroCamisa }
+            val filtered = if (searchQuery.isBlank()) {
+                jogadores
+            } else {
+                jogadores.filter { jogador ->
+                    jogador.nome.contains(searchQuery, ignoreCase = true) ||
+                            jogador.numeroCamisa.toString().contains(searchQuery)
+                }
+            }
+
+            filtered.sortedWith(
+                compareBy<Jogador> { jogador ->
+                    // Substituídos vão para o fim
+                    jogadoresSubstituidosIds.contains(jogador.id)
+                }.thenBy { jogador ->
+                    // Presentes primeiro
+                    !listaPresenca.any { it.first.id == jogador.id }
+                }.thenBy { it.nome }
+            )
         }
     }
 
@@ -52,7 +74,7 @@ fun JogoScreen(
             TopAppBar(
                 title = { Text("Jogo em Andamento") },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = { showExitDialog = true }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar")
                     }
                 }
@@ -66,57 +88,41 @@ fun JogoScreen(
                 .padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // COLUNA 1: LISTA DE JOGADORES
             Card(
                 modifier = Modifier
                     .width(300.dp)
                     .fillMaxHeight()
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp)
-                ) {
-                    Text(
-                        "Confirmar Chegada",
-                        style = MaterialTheme.typography.titleLarge
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        "Total: ${jogadoresOrdenados.size} jogadores",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
+                Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                    Text("Lista de Jogadores", style = MaterialTheme.typography.titleLarge)
                     Spacer(modifier = Modifier.height(16.dp))
-
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(
-                            items = jogadoresOrdenados,
-                            key = { it.id }
-                        ) { jogador ->
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Pesquisar...") },
+                        leadingIcon = { Icon(Icons.Default.Search, "Pesquisar") },
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(items = jogadoresFiltrados, key = { it.id }) { jogador ->
                             val jaConfirmado = listaPresenca.any { it.first.id == jogador.id }
+                            val foiSubstituido = jogadoresSubstituidosIds.contains(jogador.id)
                             val ordemChegada = if (jaConfirmado) {
                                 listaPresenca.indexOfFirst { it.first.id == jogador.id } + 1
                             } else {
                                 null
                             }
-
-                            JogadorComCheckbox(
+                            
+                            JogadorItemLista(
                                 jogador = jogador,
                                 confirmado = jaConfirmado,
+                                substituido = foiSubstituido,
                                 ordemChegada = ordemChegada,
-                                onConfirmar = { confirmado ->
-                                    if (confirmado && !jaConfirmado) {
-                                        sessaoViewModel.adicionarAListaPresenca(jogador)
-                                    } else if (!confirmado && jaConfirmado) {
-                                        sessaoViewModel.removerDaListaPresenca(jogador.id)
-                                    }
+                                onTogglePresenca = {
+                                    if (jaConfirmado) sessaoViewModel.removerDaListaPresenca(jogador.id)
+                                    else sessaoViewModel.adicionarAListaPresenca(jogador)
                                 }
                             )
                         }
@@ -124,14 +130,7 @@ fun JogoScreen(
                 }
             }
 
-            // COLUNA 2: ÁREA PRINCIPAL
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .weight(1f),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // PLACAR E CRONÔMETRO UNIFICADOS
+            Column(modifier = Modifier.fillMaxSize().weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 PlacarComponent(
                     placarBranco = placarBranco,
                     placarVermelho = placarVermelho,
@@ -142,30 +141,32 @@ fun JogoScreen(
                         finalizacaoAutomatica = true
                         showFinalizarDialog = true
                     },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(0.25f)
+                    modifier = Modifier.fillMaxWidth().weight(0.25f)
                 )
 
-                // ESCALAÇÕES
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(0.65f),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    EscalacaoCard(
+                Row(modifier = Modifier.fillMaxWidth().weight(0.65f), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    EscalacaoCardComSubstituicao(
                         modifier = Modifier.weight(1f),
                         titulo = "TIME BRANCO",
                         jogadores = timeBranco,
-                        cor = MaterialTheme.colorScheme.primaryContainer
+                        cor = MaterialTheme.colorScheme.primaryContainer,
+                        jogadoresSubstituidosIds = jogadoresSubstituidosIds,
+                        onSubstituir = { jogador ->
+                            jogadorParaSubstituir = Pair(jogador, TimeColor.BRANCO)
+                            showSubstituicaoDialog = true
+                        }
                     )
 
-                    EscalacaoCard(
+                    EscalacaoCardComSubstituicao(
                         modifier = Modifier.weight(1f),
                         titulo = "TIME VERMELHO",
                         jogadores = timeVermelho,
-                        cor = MaterialTheme.colorScheme.errorContainer
+                        cor = MaterialTheme.colorScheme.errorContainer,
+                        jogadoresSubstituidosIds = jogadoresSubstituidosIds,
+                        onSubstituir = { jogador ->
+                            jogadorParaSubstituir = Pair(jogador, TimeColor.VERMELHO)
+                            showSubstituicaoDialog = true
+                        }
                     )
                 }
 
@@ -174,18 +175,50 @@ fun JogoScreen(
                         finalizacaoAutomatica = false
                         showFinalizarDialog = true
                     },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(0.1f)
-                        .heightIn(min = 56.dp)
+                    modifier = Modifier.fillMaxWidth().weight(0.1f).heightIn(min = 56.dp)
                 ) {
-                    Text(
-                        "Finalizar Jogo",
-                        style = MaterialTheme.typography.titleMedium
-                    )
+                    Text("Finalizar Jogo", style = MaterialTheme.typography.titleMedium)
                 }
             }
         }
+    }
+
+    if (showExitDialog) {
+        AlertDialog(
+            onDismissRequest = { showExitDialog = false },
+            title = { Text("Sair da Partida?") },
+            text = { Text("O jogo continuará em andamento. Você poderá voltar a ele pelo menu principal.") },
+            confirmButton = {
+                Button(onClick = onNavigateBack) { Text("Sair para o Menu") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExitDialog = false }) { Text("Continuar no Jogo") }
+            }
+        )
+    }
+
+    if (showSubstituicaoDialog && jogadorParaSubstituir != null) {
+        SubstituicaoDialog(
+            jogadorSaindo = jogadorParaSubstituir!!.first,
+            time = jogadorParaSubstituir!!.second,
+            jogadoresDisponiveis = jogadores.filter { jogador ->
+                !timeBranco.any { it.id == jogador.id } && !timeVermelho.any { it.id == jogador.id }
+            },
+            onDismiss = {
+                showSubstituicaoDialog = false
+                jogadorParaSubstituir = null
+            },
+            onConfirm = { jogadorEntrando, isLesionado ->
+                sessaoViewModel.substituirJogador(
+                    jogadorSaindo = jogadorParaSubstituir!!.first,
+                    jogadorEntrando = jogadorEntrando,
+                    time = jogadorParaSubstituir!!.second,
+                    isLesionado = isLesionado
+                )
+                showSubstituicaoDialog = false
+                jogadorParaSubstituir = null
+            }
+        )
     }
 
     if (showFinalizarDialog) {
@@ -194,13 +227,8 @@ fun JogoScreen(
             title = { Text(if (finalizacaoAutomatica) "Tempo Esgotado!" else "Finalizar Jogo") },
             text = {
                 Column {
-                    if (finalizacaoAutomatica) {
-                        Text("O tempo de jogo acabou!", style = MaterialTheme.typography.bodyLarge)
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-                    Text("Placar Final:")
-                    Text("TIME BRANCO: $placarBranco", style = MaterialTheme.typography.titleMedium)
-                    Text("TIME VERMELHO: $placarVermelho", style = MaterialTheme.typography.titleMedium)
+                    Text("Placar Final: $placarBranco x $placarVermelho")
+                    Text("Confirmar resultado?")
                 }
             },
             confirmButton = {
@@ -225,95 +253,96 @@ fun JogoScreen(
 }
 
 @Composable
-private fun JogadorComCheckbox(
+private fun JogadorItemLista(
     jogador: Jogador,
     confirmado: Boolean,
+    substituido: Boolean,
     ordemChegada: Int?,
-    onConfirmar: (Boolean) -> Unit
+    onTogglePresenca: () -> Unit
 ) {
+    val alphaValue = if (substituido) 0.5f else 1f
+    val color = if (substituido) Color.LightGray else MaterialTheme.colorScheme.surface
+    
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().alpha(alphaValue),
         shape = MaterialTheme.shapes.small,
+        color = color,
         tonalElevation = 1.dp
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Checkbox(checked = confirmado, onCheckedChange = onConfirmar)
-
+            Checkbox(checked = confirmado, onCheckedChange = { onTogglePresenca() }, enabled = !substituido)
+            
             if (confirmado && ordemChegada != null) {
                 Text(
-                    text = "${ordemChegada}°",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
+                    text = "${ordemChegada}°", 
+                    style = MaterialTheme.typography.labelLarge, 
+                    fontWeight = FontWeight.Bold, 
+                    color = MaterialTheme.colorScheme.primary, 
                     modifier = Modifier.width(32.dp)
                 )
             } else {
                 Spacer(modifier = Modifier.width(32.dp))
             }
-
+            
             Text("|", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.outline)
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = jogador.nome, style = MaterialTheme.typography.bodyMedium)
+                Text(text = jogador.nome, style = MaterialTheme.typography.bodyMedium, color = Color.Black)
                 Text(
-                    text = if (jogador.isPosicaoGoleiro) "Goleiro" else "Linha",
+                    text = if (substituido) "Substituído" else if (jogador.isPosicaoGoleiro) "Goleiro" else "Linha",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Color.DarkGray
                 )
             }
-
-            Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.primaryContainer) {
-                Text(
-                    text = "#${jogador.numeroCamisa}",
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.labelLarge
-                )
-            }
+            Text(text = "#${jogador.numeroCamisa}", style = MaterialTheme.typography.labelLarge, color = Color.Black)
         }
     }
 }
 
 @Composable
-private fun EscalacaoCard(
+private fun EscalacaoCardComSubstituicao(
     modifier: Modifier = Modifier,
     titulo: String,
     jogadores: List<Jogador>,
-    cor: androidx.compose.ui.graphics.Color
+    cor: androidx.compose.ui.graphics.Color,
+    jogadoresSubstituidosIds: Set<Long>,
+    onSubstituir: (Jogador) -> Unit
 ) {
-    Card(
-        modifier = modifier.fillMaxHeight(),
-        colors = CardDefaults.cardColors(containerColor = cor)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(16.dp)
-        ) {
+    Card(modifier = modifier.fillMaxHeight(), colors = CardDefaults.cardColors(containerColor = cor)) {
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Text(text = titulo, style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(12.dp))
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(jogadores) { jogador ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                    val foiSubstituido = jogadoresSubstituidosIds.contains(jogador.id)
+                    val alphaValue = if (foiSubstituido) 0.5f else 1f
+                    
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().alpha(alphaValue), 
+                        shape = MaterialTheme.shapes.small, 
+                        tonalElevation = 2.dp,
+                        color = if (foiSubstituido) Color.LightGray else MaterialTheme.colorScheme.surface
                     ) {
-                        Text(
-                            text = if (jogador.isPosicaoGoleiro) "[GOL] ${jogador.nome}" else jogador.nome,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Text(
-                            text = "#${jogador.numeroCamisa}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Row(modifier = Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = (if (jogador.isPosicaoGoleiro) "[GOL] " else "") + jogador.nome + (if (foiSubstituido) " (S)" else ""), 
+                                style = MaterialTheme.typography.bodyMedium, 
+                                modifier = Modifier.weight(1f),
+                                color = Color.Black
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(text = "#${jogador.numeroCamisa}", style = MaterialTheme.typography.bodyMedium, color = Color.Black)
+                                if (!foiSubstituido) {
+                                    IconButton(onClick = { onSubstituir(jogador) }, modifier = Modifier.size(32.dp)) {
+                                        Icon(Icons.Default.SwapHoriz, contentDescription = "Substituir", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

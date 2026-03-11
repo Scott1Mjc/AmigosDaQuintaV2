@@ -4,8 +4,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
@@ -21,10 +21,15 @@ import com.example.amigosdaquinta.ui.screens.home.AdicionarJogadorDialog
  * Tela de gerenciamento completo de jogadores (CRUD).
  *
  * Funcionalidades:
- * - Listar todos os jogadores
- * - Adicionar novo jogador
+ * - Listar todos os jogadores cadastrados
+ * - Adicionar novo jogador (números de camisa: 0 a 999)
  * - Editar jogador existente
- * - Remover jogador (marca como inativo)
+ * - Remover jogador (exclusão permanente com confirmação)
+ *
+ * Validações:
+ * - Nome não pode ser vazio
+ * - Número da camisa deve estar entre 0 e 999
+ * - Suporte a números especiais (777, 110, etc.)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,13 +44,18 @@ fun GerenciarJogadoresScreen(
     var jogadorParaEditar by remember { mutableStateOf<Jogador?>(null) }
     var jogadorParaRemover by remember { mutableStateOf<Jogador?>(null) }
 
+    // Ordenar jogadores por número de camisa
+    val jogadoresOrdenados by remember(jogadores) {
+        derivedStateOf { jogadores.sortedBy { it.numeroCamisa } }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Gerenciar Jogadores") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, "Voltar")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar")
                     }
                 }
             )
@@ -83,7 +93,8 @@ fun GerenciarJogadoresScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             "Clique no botão + para adicionar",
-                            style = MaterialTheme.typography.bodySmall
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -96,15 +107,35 @@ fun GerenciarJogadoresScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         item {
-                            Text(
-                                "Total: ${jogadores.size} jogadores",
-                                style = MaterialTheme.typography.titleMedium,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                                )
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp)
+                                ) {
+                                    Text(
+                                        "Total: ${jogadores.size} jogadores",
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        "Números de camisa suportados: 0 a 999",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
                         }
 
                         items(
-                            items = jogadores,
+                            items = jogadoresOrdenados,
                             key = { it.id }
                         ) { jogador ->
                             JogadorCardComAcoes(
@@ -135,8 +166,13 @@ fun GerenciarJogadoresScreen(
         EditarJogadorDialog(
             jogador = jogador,
             onDismiss = { jogadorParaEditar = null },
-            onConfirm = { nome, numero, isGoleiro ->
-                viewModel.editarJogador(jogador.id, nome, numero, isGoleiro)
+            onConfirm = { jogadorAtualizado ->
+                viewModel.editarJogador(
+                    jogadorAtualizado.id,
+                    jogadorAtualizado.nome,
+                    jogadorAtualizado.numeroCamisa,
+                    jogadorAtualizado.isPosicaoGoleiro
+                )
                 jogadorParaEditar = null
             }
         )
@@ -146,9 +182,51 @@ fun GerenciarJogadoresScreen(
     jogadorParaRemover?.let { jogador ->
         AlertDialog(
             onDismissRequest = { jogadorParaRemover = null },
+            icon = {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error
+                )
+            },
             title = { Text("Remover Jogador") },
             text = {
-                Text("Tem certeza que deseja remover ${jogador.nome}? Esta ação não pode ser desfeita.")
+                Column {
+                    Text("Tem certeza que deseja remover este jogador?")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp)
+                        ) {
+                            Text(
+                                jogador.nome,
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Text(
+                                "Camisa #${jogador.numeroCamisa}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                if (jogador.isPosicaoGoleiro) "Goleiro" else "Jogador de Linha",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Esta ação não pode ser desfeita.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
             },
             confirmButton = {
                 Button(
@@ -173,7 +251,17 @@ fun GerenciarJogadoresScreen(
 }
 
 /**
- * Card de jogador com botões de ação (editar/remover)
+ * Card de jogador com botões de ação (editar/remover).
+ *
+ * Exibe:
+ * - Nome do jogador
+ * - Número da camisa (suporta 0-999)
+ * - Posição (Goleiro ou Linha)
+ * - Botões de editar e remover
+ *
+ * @param jogador Dados do jogador
+ * @param onEditar Callback ao clicar em editar
+ * @param onRemover Callback ao clicar em remover
  */
 @Composable
 private fun JogadorCardComAcoes(
@@ -202,16 +290,33 @@ private fun JogadorCardComAcoes(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text(
-                        text = "Camisa ${jogador.numeroCamisa}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = if (jogador.isPosicaoGoleiro) "Goleiro" else "Linha",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    // Badge do número da camisa
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.primaryContainer
+                    ) {
+                        Text(
+                            text = "#${jogador.numeroCamisa}",
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+
+                    // Badge da posição
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = if (jogador.isPosicaoGoleiro) {
+                            MaterialTheme.colorScheme.tertiaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.secondaryContainer
+                        }
+                    ) {
+                        Text(
+                            text = if (jogador.isPosicaoGoleiro) "GOL" else "LINHA",
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
                 }
             }
 

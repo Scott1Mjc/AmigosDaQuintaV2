@@ -21,12 +21,15 @@ object JogadoresIniciais {
      * - isPosicaoGoleiro = false para jogadores de linha
      */
     val lista = listOf(
-        // GOLEIROS (marcar com isPosicaoGoleiro = true)
-        Jogador(nome = "EVERSON", numeroCamisa = 1, isPosicaoGoleiro = true),
+        // GOLEIROS
         Jogador(nome = "ISIDRO", numeroCamisa = 92, isPosicaoGoleiro = true),
+        Jogador(nome = "MIGUEL", numeroCamisa = 12, isPosicaoGoleiro = true),
+        Jogador(nome = "WILLIAN", numeroCamisa = 13, isPosicaoGoleiro = true),
+        Jogador(nome = "MIGUELZINHO", numeroCamisa = 60, isPosicaoGoleiro = true),
 
         // JOGADORES DE LINHA
         Jogador(nome = "NETTO", numeroCamisa = 2, isPosicaoGoleiro = false),
+        Jogador(nome = "EVERSON", numeroCamisa = 1, isPosicaoGoleiro = false),
         Jogador(nome = "AMÉRICO", numeroCamisa = 3, isPosicaoGoleiro = false),
         Jogador(nome = "ROGERIO", numeroCamisa = 4, isPosicaoGoleiro = false),
         Jogador(nome = "ANSELMO", numeroCamisa = 5, isPosicaoGoleiro = false),
@@ -36,8 +39,6 @@ object JogadoresIniciais {
         Jogador(nome = "DIOGO", numeroCamisa = 9, isPosicaoGoleiro = false),
         Jogador(nome = "APARÍCIO", numeroCamisa = 10, isPosicaoGoleiro = false),
         Jogador(nome = "MÁRCIO", numeroCamisa = 11, isPosicaoGoleiro = false),
-        Jogador(nome = "MIGUEL", numeroCamisa = 12, isPosicaoGoleiro = false),
-        Jogador(nome = "WILLIAN", numeroCamisa = 13, isPosicaoGoleiro = false),
         Jogador(nome = "AUDE", numeroCamisa = 14, isPosicaoGoleiro = false),
         Jogador(nome = "FERNANDÃO", numeroCamisa = 15, isPosicaoGoleiro = false),
         Jogador(nome = "ZÉ DA CHUVA", numeroCamisa = 16, isPosicaoGoleiro = false),
@@ -72,7 +73,6 @@ object JogadoresIniciais {
         Jogador(nome = "GORI", numeroCamisa = 53, isPosicaoGoleiro = false),
         Jogador(nome = "TONINHO", numeroCamisa = 55, isPosicaoGoleiro = false),
         Jogador(nome = "ROGER", numeroCamisa = 57, isPosicaoGoleiro = false),
-        Jogador(nome = "MIGUELZINHO", numeroCamisa = 60, isPosicaoGoleiro = false),
         Jogador(nome = "CARLINHOS", numeroCamisa = 61, isPosicaoGoleiro = false),
         Jogador(nome = "SERGINHO", numeroCamisa = 65, isPosicaoGoleiro = false),
         Jogador(nome = "MINORU", numeroCamisa = 67, isPosicaoGoleiro = false),
