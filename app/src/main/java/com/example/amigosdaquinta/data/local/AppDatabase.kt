@@ -28,7 +28,7 @@ import com.example.amigosdaquinta.data.local.entity.PresencaDia
         Participacao::class,
         PresencaDia::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

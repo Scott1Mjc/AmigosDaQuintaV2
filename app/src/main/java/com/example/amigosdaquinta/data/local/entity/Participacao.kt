@@ -6,6 +6,7 @@ import androidx.room.PrimaryKey
 
 /**
  * Entidade que representa a participacao de um jogador em uma partida especifica.
+ * Adicionado campo entrouComoSubstituto para persistência.
  */
 @Entity(
     tableName = "participacoes",
@@ -32,5 +33,6 @@ data class Participacao(
     val time: TimeColor,
     val gols: Int = 0,
     val assistencias: Int = 0,
-    val foiSubstituido: Boolean = false
+    val foiSubstituido: Boolean = false,
+    val entrouComoSubstituto: Boolean = false
 )

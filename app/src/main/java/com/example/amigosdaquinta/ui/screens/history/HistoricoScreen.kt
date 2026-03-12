@@ -22,7 +22,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * Tela de histórico de jogos com cores atualizadas para cinza claro e texto preto.
+ * Tela de histórico de jogos padronizada com o estilo cinza/lavanda da lista de chegada.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,30 +43,41 @@ fun HistoricoScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Histórico de Jogos") },
+                title = { Text("Histórico de Jogos", color = Color.Black) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack, 
+                            contentDescription = "Voltar",
+                            tint = Color.Black
+                        )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.White
+                )
             )
-        }
+        },
+        containerColor = Color(0xFFF8F9FA) // Fundo levemente cinza para destacar os cards
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            Card(
+            // Card de Cabeçalho estilo cinza claro (Print 1)
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
+                shape = MaterialTheme.shapes.medium,
+                color = Color(0xFFEBE8EC)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         text = "Histórico de Jogos",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color.Black
+                        style = MaterialTheme.typography.titleLarge,
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = "Últimos 30 dias",
@@ -83,12 +94,13 @@ fun HistoricoScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Nenhum jogo registrado nos últimos 30 dias", color = Color.Black)
+                    Text("Nenhum jogo registrado nos últimos 30 dias", color = Color.Gray)
                 }
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
                     items(jogos) { jogo ->
                         JogoHistoricoItem(
@@ -116,57 +128,57 @@ private fun JogoHistoricoItem(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = MaterialTheme.shapes.medium,
-        color = Color(0xFFEEEEEE)
+        color = Color(0xFFF3F0F5) // Estilo dos itens da lista de chegada (Print 1)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp)
+                .padding(16.dp)
         ) {
-            // LINHA SUPERIOR: NÚMERO DO JOGO | DATA | HORA
-            Box(modifier = Modifier.fillMaxWidth()) {
+            // LINHA SUPERIOR: Informações de data e número do jogo
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    text = "${jogo.numeroJogo} Jogo",
+                    text = "${jogo.numeroJogo}° Jogo",
                     style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.align(Alignment.CenterStart),
-                    color = Color.Black
+                    color = Color.DarkGray,
+                    fontWeight = FontWeight.SemiBold
                 )
                 Text(
                     text = dateFormat.format(Date(jogo.data)),
                     style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.align(Alignment.Center),
-                    color = Color.Black
+                    color = Color.DarkGray
                 )
                 Text(
                     text = timeFormat.format(Date(jogo.data)),
                     style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.align(Alignment.CenterEnd),
-                    color = Color.Black
+                    color = Color.DarkGray
                 )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // LINHA CENTRAL: PLACAR
+            // LINHA CENTRAL: PLACAR (Foco no resultado)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     "BRANCO",
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center,
-                    color = Color.DarkGray
+                    textAlign = TextAlign.End,
+                    color = Color.Gray
                 )
 
                 Text(
-                    text = "${jogo.placarBranco} x ${jogo.placarVermelho}",
+                    text = "  ${jogo.placarBranco} x ${jogo.placarVermelho}  ",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center,
                     color = Color.Black
                 )
 
@@ -174,15 +186,19 @@ private fun JogoHistoricoItem(
                     "VERMELHO",
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center,
-                    color = Color.DarkGray
+                    textAlign = TextAlign.Start,
+                    color = Color.Gray
                 )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // LINHA INFERIOR: RESULTADO | DURAÇÃO
-            Box(modifier = Modifier.fillMaxWidth()) {
+            // LINHA INFERIOR: Status e Duração
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 val resultadoText = when (jogo.status) {
                     StatusJogo.FINALIZADO -> when (jogo.timeVencedor) {
                         TimeColor.BRANCO -> "Vencedor: Branco"
@@ -195,15 +211,14 @@ private fun JogoHistoricoItem(
                 Text(
                     text = resultadoText,
                     style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.align(Alignment.CenterStart),
-                    color = Color.Black
+                    color = Color.Black,
+                    fontWeight = FontWeight.Medium
                 )
 
                 Text(
                     text = "${jogo.duracao} min",
                     style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.align(Alignment.CenterEnd),
-                    color = Color.Black
+                    color = Color.DarkGray
                 )
             }
         }

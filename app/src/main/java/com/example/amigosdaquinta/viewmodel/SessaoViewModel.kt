@@ -71,6 +71,9 @@ class SessaoViewModel(
     private val _jogadoresSubstituidosIds = MutableStateFlow<Set<Long>>(emptySet())
     val jogadoresSubstituidosIds: StateFlow<Set<Long>> = _jogadoresSubstituidosIds.asStateFlow()
 
+    private val _jogadoresQueEntraramSubstitutosIds = MutableStateFlow<Set<Long>>(emptySet())
+    val jogadoresQueEntraramSubstitutosIds: StateFlow<Set<Long>> = _jogadoresQueEntraramSubstitutosIds.asStateFlow()
+
     init {
         restaurarSessaoSeExistir()
     }
@@ -98,6 +101,7 @@ class SessaoViewModel(
                     _timeVermelhoAtual.value = jogadorRepository.obterPorIds(idsVermelho)
                     
                     _jogadoresSubstituidosIds.value = participacoes.filter { it.foiSubstituido }.map { it.jogadorId }.toSet()
+                    _jogadoresQueEntraramSubstitutosIds.value = participacoes.filter { it.entrouComoSubstituto }.map { it.jogadorId }.toSet()
                     
                     atualizarDuracaoJogo()
                 }
@@ -127,6 +131,7 @@ class SessaoViewModel(
             }
         }
         _jogadoresSubstituidosIds.value = _jogadoresSubstituidosIds.value + jogadorSaindo.id
+        _jogadoresQueEntraramSubstitutosIds.value = _jogadoresQueEntraramSubstitutosIds.value + jogadorEntrando.id
         
         viewModelScope.launch {
             if (isLesionado) {
@@ -138,10 +143,19 @@ class SessaoViewModel(
             _jogoAtualId.value?.let { jogoId ->
                 participacaoRepository.marcarComoSubstituido(jogoId, jogadorSaindo.id)
                 val participacoes = participacaoRepository.obterPorJogo(jogoId)
-                if (!participacoes.any { it.jogadorId == jogadorEntrando.id }) {
+                val participacaoEntrando = participacoes.find { it.jogadorId == jogadorEntrando.id }
+                if (participacaoEntrando == null) {
                     participacaoRepository.inserir(
-                        Participacao(jogadorId = jogadorEntrando.id, jogoId = jogoId, time = time)
+                        Participacao(
+                            jogadorId = jogadorEntrando.id, 
+                            jogoId = jogoId, 
+                            time = time,
+                            entrouComoSubstituto = true
+                        )
                     )
+                } else if (!participacaoEntrando.entrouComoSubstituto) {
+                    // Caso improvável, mas para segurança: atualiza se ele já existia mas não estava marcado
+                    // (Isso aconteceria se ele fosse titular e saísse e voltasse, mas o fluxo impede isso atualmente)
                 }
             }
         }
@@ -216,6 +230,7 @@ class SessaoViewModel(
                 _placarBranco.value = 0
                 _placarVermelho.value = 0
                 _jogadoresSubstituidosIds.value = emptySet()
+                _jogadoresQueEntraramSubstitutosIds.value = emptySet()
             } catch (e: Exception) {
                 Log.e(TAG, "Erro ao criar jogo", e)
             }
@@ -236,41 +251,42 @@ class SessaoViewModel(
                 
                 jogoRepository.finalizarJogo(id = jogoId, vencedor = vencedor)
 
-                val jogadoresSaindo = mutableListOf<Jogador>()
-                val timeBrancoAtivos = _timeBrancoAtual.value.filter { it.id !in _jogadoresSubstituidosIds.value }
-                val timeVermelhoAtivos = _timeVermelhoAtual.value.filter { it.id !in _jogadoresSubstituidosIds.value }
-                val todosParticipantes = (_timeBrancoAtual.value + _timeVermelhoAtual.value).distinctBy { it.id }
+                val jogadoresQueSairaoAgora = mutableListOf<Jogador>()
+                
+                val ativosBranco = _timeBrancoAtual.value.filter { it.id !in _jogadoresSubstituidosIds.value }
+                val ativosVermelho = _timeVermelhoAtual.value.filter { it.id !in _jogadoresSubstituidosIds.value }
 
                 when (vencedor) {
                     TimeColor.BRANCO -> {
                         _jogosConsecutivosTimeAtual.value++
-                        jogadoresSaindo.addAll(todosParticipantes.filter { it.id !in timeBrancoAtivos.map { p -> p.id } })
+                        jogadoresQueSairaoAgora.addAll(ativosVermelho)
                         
                         if (_jogosConsecutivosTimeAtual.value >= 2) {
-                            jogadoresSaindo.addAll(timeBrancoAtivos)
+                            jogadoresQueSairaoAgora.addAll(ativosBranco)
                             _jogadoresUltimoTimeGanhador.value = emptyList()
                             _vencedorUltimoJogo.value = null
                             _jogosConsecutivosTimeAtual.value = 0
                         } else {
-                            _jogadoresUltimoTimeGanhador.value = timeBrancoAtivos
+                            _jogadoresUltimoTimeGanhador.value = ativosBranco
                             _vencedorUltimoJogo.value = TimeColor.BRANCO
                         }
                     }
                     TimeColor.VERMELHO -> {
-                        jogadoresSaindo.addAll(todosParticipantes.filter { it.id !in timeVermelhoAtivos.map { p -> p.id } })
+                        jogadoresQueSairaoAgora.addAll(ativosBranco)
                         _jogosConsecutivosTimeAtual.value = 1
-                        _jogadoresUltimoTimeGanhador.value = timeVermelhoAtivos
+                        _jogadoresUltimoTimeGanhador.value = ativosVermelho
                         _vencedorUltimoJogo.value = TimeColor.VERMELHO
                     }
                     null -> {
-                        jogadoresSaindo.addAll(todosParticipantes)
+                        jogadoresQueSairaoAgora.addAll(ativosBranco)
+                        jogadoresQueSairaoAgora.addAll(ativosVermelho)
                         _jogadoresUltimoTimeGanhador.value = emptyList()
                         _vencedorUltimoJogo.value = null
                         _jogosConsecutivosTimeAtual.value = 0
                     }
                 }
 
-                rotacionarJogadores(jogadoresSaindo.distinctBy { it.id })
+                rotacionarJogadores(jogadoresQueSairaoAgora.distinctBy { it.id })
 
                 _numeroDoProximoJogo.value++
                 atualizarDuracaoJogo()
@@ -311,6 +327,7 @@ class SessaoViewModel(
         _placarBranco.value = 0
         _placarVermelho.value = 0
         _jogadoresSubstituidosIds.value = emptySet()
+        _jogadoresQueEntraramSubstitutosIds.value = emptySet()
     }
 
     fun limparSessaoCompleta() {

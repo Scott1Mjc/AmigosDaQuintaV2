@@ -67,7 +67,7 @@ class HistoricoViewModel(
                 .filter { it.time == TimeColor.BRANCO }
                 .mapNotNull { part -> 
                     jogadoresMap[part.jogadorId]?.let { 
-                        JogadorParticipacao(it, part.foiSubstituido) 
+                        JogadorParticipacao(it, part.foiSubstituido, part.entrouComoSubstituto) 
                     } 
                 }
 
@@ -75,7 +75,7 @@ class HistoricoViewModel(
                 .filter { it.time == TimeColor.VERMELHO }
                 .mapNotNull { part -> 
                     jogadoresMap[part.jogadorId]?.let { 
-                        JogadorParticipacao(it, part.foiSubstituido) 
+                        JogadorParticipacao(it, part.foiSubstituido, part.entrouComoSubstituto) 
                     } 
                 }
 
@@ -130,7 +130,8 @@ class HistoricoViewModel(
 
 data class JogadorParticipacao(
     val jogador: Jogador,
-    val foiSubstituido: Boolean
+    val foiSubstituido: Boolean,
+    val entrouComoSubstituto: Boolean
 )
 
 data class JogoDetalhes(
