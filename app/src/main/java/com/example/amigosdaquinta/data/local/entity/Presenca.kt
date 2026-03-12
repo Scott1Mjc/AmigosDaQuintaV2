@@ -6,8 +6,11 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * Entidade que representa a presença de um jogador em uma sessão.
- * Armazena o timestamp de chegada para ordenação por ordem de chegada.
+ * Representa a presença de um jogador na fila de espera da sessão atual.
+ *
+ * @property id Identificador único da presença.
+ * @property jogadorId ID do jogador (Chave Estrangeira). Único por sessão.
+ * @property timestamp Horário (em milissegundos) da chegada do jogador para ordenação.
  */
 @Entity(
     tableName = "presencas",
@@ -20,21 +23,12 @@ import androidx.room.PrimaryKey
         )
     ],
     indices = [
-        Index(value = ["jogadorId"], unique = true) // Cada jogador só pode ter 1 presença
+        Index(value = ["jogadorId"], unique = true)
     ]
 )
 data class Presenca(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
-
-    /**
-     * ID do jogador que está presente.
-     */
     val jogadorId: Long,
-
-    /**
-     * Timestamp de chegada (System.currentTimeMillis()).
-     * Usado para ordenar jogadores por ordem de chegada.
-     */
     val timestamp: Long
 )

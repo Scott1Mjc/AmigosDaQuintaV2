@@ -8,7 +8,10 @@ import com.example.amigosdaquinta.data.repository.ParticipacaoRepository
 import com.example.amigosdaquinta.data.repository.PresencaRepository
 
 /**
- * Factory para criação de ViewModels com dependências.
+ * Fábrica de ViewModels para o aplicativo Amigos da Quinta.
+ * 
+ * Permite a injeção manual de dependências (repositórios) nos ViewModels,
+ * garantindo que as instâncias corretas sejam criadas pelo ViewModelProvider.
  */
 @Suppress("UNCHECKED_CAST")
 class AppViewModelFactory(
@@ -41,7 +44,7 @@ class AppViewModelFactory(
                 ) as T
             }
 
-            else -> throw IllegalArgumentException("ViewModel class not found: ${modelClass.name}")
+            else -> throw IllegalArgumentException("Classe ViewModel não encontrada: ${modelClass.name}")
         }
     }
 }

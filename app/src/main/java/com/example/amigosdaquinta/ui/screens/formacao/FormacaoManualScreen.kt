@@ -2,27 +2,28 @@ package com.example.amigosdaquinta.ui.screens.formacao
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.amigosdaquinta.data.local.entity.Jogador
 import com.example.amigosdaquinta.data.local.entity.TimeColor
 import com.example.amigosdaquinta.viewmodel.SessaoViewModel
 
 /**
- * Tela de formação manual do primeiro jogo.
+ * Tela de Formação Manual de Partida.
+ * 
+ * Permite a seleção individual dos atletas para compor os times Branco e Vermelho.
+ * Valida se ambos os times possuem 11 jogadores e ao menos um goleiro antes de permitir o início.
  *
- * O usuário seleciona individualmente os 11 jogadores de cada time.
- * Validações ativas: máximo 1 goleiro por time, exatamente 11 jogadores por time.
- *
- * Os estados [timeBranco] e [timeVermelho] usam [rememberSaveable] para sobreviver
- * a rotações de tela sem perder o progresso da montagem.
- *
- * Ao tocar em voltar com progresso não salvo, um dialog de confirmação é exibido.
+ * @param jogadoresPresentes Lista de atletas que confirmaram presença na sessão.
+ * @param sessaoViewModel ViewModel para criação da partida e registro das escalações.
+ * @param onNavigateBack Callback para retornar à tela anterior.
+ * @param onIniciarJogo Callback acionado após a criação bem-sucedida do jogo.
  */
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FormacaoManualScreen(
@@ -40,64 +41,55 @@ fun FormacaoManualScreen(
         .map { it.first }
         .filter { jogador ->
             !timeBranco.any { it.id == jogador.id } &&
-                    !timeVermelho.any { it.id == jogador.id }
+            !timeVermelho.any { it.id == jogador.id }
         }
 
-    val timeBrancoCompleto = timeBranco.size == 11
-    val timeVermelhoCompleto = timeVermelho.size == 11
-    val temGoleiroBranco = timeBranco.any { it.isPosicaoGoleiro }
-    val temGoleiroVermelho = timeVermelho.any { it.isPosicaoGoleiro }
-    val podeIniciar = timeBrancoCompleto && timeVermelhoCompleto &&
-            temGoleiroBranco && temGoleiroVermelho
+    val podeIniciar = timeBranco.size == 11 && timeVermelho.size == 11 &&
+            timeBranco.any { it.isPosicaoGoleiro } && timeVermelho.any { it.isPosicaoGoleiro }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Formar 1º Jogo (Manual)") },
+                title = { Text("Escalação Manual", color = Color.Black) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, "Voltar")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", tint = Color.Black)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
-        }
+        },
+        containerColor = Color(0xFFF8F9FA)
     ) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)
+            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)
         ) {
-            // Instruções
-            Card(modifier = Modifier.fillMaxWidth()) {
+            // Painel de Instruções
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+                color = Color(0xFFEBE8EC)
+            ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "Selecione 11 jogadores para cada time",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        "Cada time precisa de 1 goleiro",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Disponíveis: ${jogadoresDisponiveis.size} jogadores")
+                    Text("Configuração dos Times", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Selecione 11 atletas para cada lado (mínimo 1 goleiro)", style = MaterialTheme.typography.bodySmall, color = Color.DarkGray)
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Times
+            // Área de Escalação (Lado a Lado)
             Row(
                 modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 TimeFormadoCard(
                     modifier = Modifier.weight(1f),
                     titulo = "TIME BRANCO",
-                    cor = MaterialTheme.colorScheme.primaryContainer,
+                    cor = Color(0xFFE8E2FF),
                     jogadores = timeBranco,
-                    completo = timeBrancoCompleto,
-                    temGoleiro = temGoleiroBranco,
+                    completo = timeBranco.size == 11,
+                    temGoleiro = timeBranco.any { it.isPosicaoGoleiro },
                     onAdicionar = {
                         timeParaAdicionar = TimeColor.BRANCO
                         showDialog = true
@@ -110,10 +102,10 @@ fun FormacaoManualScreen(
                 TimeFormadoCard(
                     modifier = Modifier.weight(1f),
                     titulo = "TIME VERMELHO",
-                    cor = MaterialTheme.colorScheme.errorContainer,
+                    cor = Color(0xFFFFE1E1),
                     jogadores = timeVermelho,
-                    completo = timeVermelhoCompleto,
-                    temGoleiro = temGoleiroVermelho,
+                    completo = timeVermelho.size == 11,
+                    temGoleiro = timeVermelho.any { it.isPosicaoGoleiro },
                     onAdicionar = {
                         timeParaAdicionar = TimeColor.VERMELHO
                         showDialog = true
@@ -126,59 +118,39 @@ fun FormacaoManualScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Botão Iniciar
+            // Botão de Confirmação Final
             Button(
                 onClick = {
-                    sessaoViewModel.criarJogo(
-                        timeBranco = timeBranco,
-                        timeVermelho = timeVermelho
-                    )
+                    sessaoViewModel.criarJogo(timeBranco, timeVermelho)
                     onIniciarJogo()
                 },
                 enabled = podeIniciar,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = MaterialTheme.shapes.medium,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4B0082))
             ) {
                 Text(
-                    if (podeIniciar) {
-                        "Iniciar 1º Jogo"
-                    } else {
-                        "Complete os times (11 jogadores cada + 1 goleiro)"
-                    }
+                    if (podeIniciar) "INICIAR PARTIDA" else "AGUARDANDO ESCALAÇÃO COMPLETA",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
     }
 
-    // Dialog de seleção
     if (showDialog && timeParaAdicionar != null) {
+        val jaTemGoleiro = if (timeParaAdicionar == TimeColor.BRANCO) timeBranco.any { it.isPosicaoGoleiro } else timeVermelho.any { it.isPosicaoGoleiro }
+        val listaFiltrada = if (jaTemGoleiro) jogadoresDisponiveis.filter { !it.isPosicaoGoleiro } else jogadoresDisponiveis
+
         SelecionarJogadorParaTimeDialog(
-            jogadores = jogadoresDisponiveis,
+            jogadores = listaFiltrada,
             onDismiss = {
                 showDialog = false
                 timeParaAdicionar = null
             },
             onSelect = { jogador ->
-                when (timeParaAdicionar) {
-                    TimeColor.BRANCO -> {
-                        // Validação: máximo 1 goleiro
-                        val jaTemGoleiro = timeBranco.any { it.isPosicaoGoleiro }
-                        if (jogador.isPosicaoGoleiro && jaTemGoleiro) {
-                            // Não adiciona
-                        } else {
-                            timeBranco = timeBranco + jogador
-                        }
-                    }
-                    TimeColor.VERMELHO -> {
-                        // Validação: máximo 1 goleiro
-                        val jaTemGoleiro = timeVermelho.any { it.isPosicaoGoleiro }
-                        if (jogador.isPosicaoGoleiro && jaTemGoleiro) {
-                            // Não adiciona
-                        } else {
-                            timeVermelho = timeVermelho + jogador
-                        }
-                    }
-                    else -> {}
-                }
+                if (timeParaAdicionar == TimeColor.BRANCO && timeBranco.size < 11) timeBranco = timeBranco + jogador
+                else if (timeParaAdicionar == TimeColor.VERMELHO && timeVermelho.size < 11) timeVermelho = timeVermelho + jogador
                 showDialog = false
                 timeParaAdicionar = null
             }

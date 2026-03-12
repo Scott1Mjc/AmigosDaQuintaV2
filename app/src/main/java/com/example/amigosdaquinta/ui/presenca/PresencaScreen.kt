@@ -1,14 +1,17 @@
-package com.example.amigosdaquinta.ui.screens.presenca
+package com.example.amigosdaquinta.ui.presenca
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.amigosdaquinta.viewmodel.JogadoresViewModel
 import com.example.amigosdaquinta.viewmodel.SessaoViewModel
@@ -16,17 +19,10 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * Tela de lista de presença do dia.
- *
- * Registra a ordem de chegada dos jogadores para a sessão atual.
- * A sessão é inicializada via [SessaoViewModel.iniciarNovoDia] caso ainda não exista,
- * garantindo que a tela seja sempre exibida com um contexto de sessão válido.
- *
- * Thresholds de comportamento controlados aqui:
- * - 22+ jogadores: habilita o botão de formar times.
- * - 33+ jogadores: exibe aviso de modo rotação total (todos jogam por ordem de chegada).
- *
- * O dialog de seleção filtra jogadores já presentes para evitar duplicatas na lista.
+ * Tela de Gestão de Presença.
+ * 
+ * Registra a ordem de chegada dos atletas para a sessão atual.
+ * Exibe contagem total e validação para início da formação de times.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,56 +33,48 @@ fun PresencaScreen(
     onFormarTimes: () -> Unit = {}
 ) {
     val jogadores by jogadoresViewModel.jogadores.collectAsState()
-    val sessao by sessaoViewModel.sessaoAtual.collectAsState()
     val listaPresenca by sessaoViewModel.listaPresenca.collectAsState()
 
-    val modoRotacaoTotal = listaPresenca.size >= 33
     var showDialog by remember { mutableStateOf(false) }
-
-    val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
-    val dataAtual = remember { dateFormat.format(Date()) }
-
-    LaunchedEffect(Unit) {
-        if (sessao == null) sessaoViewModel.iniciarNovoDia()
-    }
+    val dataAtual = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date()) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Lista de Presenca - $dataAtual") },
+                title = { Text("Lista de Presença - $dataAtual", color = Color.Black) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Voltar")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", tint = Color.Black)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showDialog = true }) {
-                Text("+")
+            FloatingActionButton(
+                onClick = { showDialog = true },
+                containerColor = Color(0xFF4B0082),
+                contentColor = Color.White
+            ) {
+                Icon(Icons.Default.Add, "Adicionar Presença")
             }
-        }
+        },
+        containerColor = Color(0xFFF8F9FA)
     ) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)
+            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)
         ) {
-            PresencaStatusCard(
-                total = listaPresenca.size,
-                modoRotacaoTotal = modoRotacaoTotal
-            )
+            PresencaSummaryCard(total = listaPresenca.size)
 
             Spacer(modifier = Modifier.height(16.dp))
 
             if (listaPresenca.isEmpty()) {
-                EmptyPresencaState()
+                EmptyPresencaView()
             } else {
                 LazyColumn(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     itemsIndexed(
                         items = listaPresenca,
@@ -107,26 +95,25 @@ fun PresencaScreen(
             Button(
                 onClick = onFormarTimes,
                 enabled = listaPresenca.size >= 22,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = MaterialTheme.shapes.medium,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4B0082))
             ) {
                 Text(
-                    if (listaPresenca.size >= 22) {
-                        "Formar 1 Jogo (${listaPresenca.size} jogadores)"
-                    } else {
-                        "Aguardando jogadores (${listaPresenca.size}/22)"
-                    }
+                    if (listaPresenca.size >= 22) "FORMAR TIMES (${listaPresenca.size})" else "AGUARDANDO MÍNIMO (22)",
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
     }
 
     if (showDialog) {
-        val jogadoresNaLista = listaPresenca.map { it.first.id }.toSet()
+        val idsPresentes = listaPresenca.map { it.first.id }.toSet()
         SelecionarJogadorDialog(
-            jogadores = jogadores.filter { it.id !in jogadoresNaLista },
+            jogadores = jogadores.filter { it.id !in idsPresentes },
             onDismiss = { showDialog = false },
-            onSelect = { jogador ->
-                sessaoViewModel.adicionarAListaPresenca(jogador)
+            onSelect = {
+                sessaoViewModel.adicionarAListaPresenca(it)
                 showDialog = false
             }
         )
@@ -134,50 +121,22 @@ fun PresencaScreen(
 }
 
 @Composable
-private fun PresencaStatusCard(total: Int, modoRotacaoTotal: Boolean) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+private fun PresencaSummaryCard(total: Int) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = Color(0xFFEBE8EC)
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "Total: $total jogadores",
-                style = MaterialTheme.typography.titleMedium
-            )
-
-            if (modoRotacaoTotal) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "MODO ROTACAO TOTAL ATIVADO",
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.titleSmall
-                )
-                Text(
-                    text = "33+ jogadores: todos jogam por ordem de chegada",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            } else if (total >= 22) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Pronto para formar times!",
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
+            Text("Resumo de Presença", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("Total de $total jogadores confirmados", style = MaterialTheme.typography.bodySmall, color = Color.DarkGray)
         }
     }
 }
 
 @Composable
-private fun EmptyPresencaState() {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(text = "Jogadores", style = MaterialTheme.typography.displayMedium)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text("Nenhum jogador na lista ainda")
-        Text(
-            text = "Clique no + para adicionar",
-            style = MaterialTheme.typography.bodySmall
-        )
+private fun EmptyPresencaView() {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text("Nenhum atleta na lista", color = Color.Gray)
     }
 }

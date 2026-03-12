@@ -15,11 +15,10 @@ import com.example.amigosdaquinta.data.local.entity.Participacao
 import com.example.amigosdaquinta.data.local.entity.PresencaDia
 
 /**
- * Banco de dados local do app.
- *
- * Entidades registradas: [Jogador], [Jogo], [Participacao], [PresencaDia].
- *
- * [fallbackToDestructiveMigration] está ativo para facilitar o desenvolvimento.
+ * Ponto central de acesso ao banco de dados SQLite via Room.
+ * 
+ * Define as entidades do sistema, versionamento e fornece instâncias dos DAOs.
+ * Utiliza o padrão Singleton para garantir uma única conexão aberta com o banco.
  */
 @Database(
     entities = [
@@ -43,6 +42,9 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
+        /**
+         * Retorna a instância única do banco de dados.
+         */
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(

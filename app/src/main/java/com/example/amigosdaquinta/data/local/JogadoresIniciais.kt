@@ -3,22 +3,15 @@ package com.example.amigosdaquinta.data.local
 import com.example.amigosdaquinta.data.local.entity.Jogador
 
 /**
- * Lista de jogadores pré-cadastrados no sistema.
- *
- * Esta lista é inserida automaticamente na primeira execução do app.
- * Para adicionar novos jogadores iniciais, basta adicionar à lista abaixo.
- *
- * IMPORTANTE: Esta população ocorre apenas uma vez, na criação do banco.
- * Alterações nesta lista após a primeira instalação não afetarão bancos existentes.
+ * Provedor de dados iniciais para a população do banco de dados.
+ * 
+ * Contém a lista de atletas fundadores e recorrentes para garantir que o aplicativo
+ * já inicie com uma base de dados utilizável.
  */
 object JogadoresIniciais {
 
     /**
-     * Lista completa de jogadores pré-cadastrados.
-     *
-     * Formato: Jogador(nome, numeroCamisa, isPosicaoGoleiro)
-     * - isPosicaoGoleiro = true para goleiros
-     * - isPosicaoGoleiro = false para jogadores de linha
+     * Lista completa de jogadores para carga inicial.
      */
     val lista = listOf(
         // GOLEIROS
@@ -109,9 +102,6 @@ object JogadoresIniciais {
         Jogador(nome = "MAXXIMUS", numeroCamisa = 8, isPosicaoGoleiro = false)
     )
 
-    /**
-     * Total de jogadores pré-cadastrados.
-     */
-    val total: Int
-        get() = lista.size
+    /** Retorna o total de atletas na lista inicial. */
+    val total: Int get() = lista.size
 }

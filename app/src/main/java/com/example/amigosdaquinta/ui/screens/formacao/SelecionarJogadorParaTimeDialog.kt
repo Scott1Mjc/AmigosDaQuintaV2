@@ -6,21 +6,22 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.amigosdaquinta.data.local.entity.Jogador
 
 /**
- * Dialog de selecao de jogador durante a formacao manual de times.
+ * Diálogo de seleção de atletas para escalação manual.
+ * 
+ * Organiza os atletas em seções (Goleiros e Linha) para facilitar a montagem
+ * estratégica das equipes.
  *
- * Diferente do [SelecionarJogadorDialog] da tela de presenca, este separa
- * goleiros e jogadores de linha em secoes distintas para facilitar a
- * montagem estrategica do time.
- *
- * A separacao em secoes e calculada a partir de [jogadoresFiltrados] ja filtrado,
- * garantindo que a busca afete ambas as secoes simultaneamente.
- *
- * Jogadores ja alocados em qualquer time devem ser filtrados antes de passar [jogadores].
+ * @param jogadores Lista de atletas disponíveis para escalação.
+ * @param onDismiss Callback para cancelamento.
+ * @param onSelect Callback acionado ao escolher um atleta.
  */
 @Composable
 fun SelecionarJogadorParaTimeDialog(
@@ -28,71 +29,45 @@ fun SelecionarJogadorParaTimeDialog(
     onDismiss: () -> Unit,
     onSelect: (Jogador) -> Unit
 ) {
-    var searchQuery by remember { mutableStateOf("") }
+    var query by remember { mutableStateOf("") }
 
-    val jogadoresFiltrados = remember(jogadores, searchQuery) {
-        if (searchQuery.isBlank()) {
-            jogadores.sortedBy { it.numeroCamisa }
-        } else {
-            jogadores.filter {
-                it.nome.contains(searchQuery, ignoreCase = true) ||
-                        it.numeroCamisa.toString().contains(searchQuery) ||
-                        (it.isPosicaoGoleiro && "goleiro".contains(searchQuery, ignoreCase = true))
-            }.sortedBy { it.numeroCamisa }
-        }
+    val filtrados = remember(jogadores, query) {
+        jogadores.filter {
+            it.nome.contains(query, ignoreCase = true) || it.numeroCamisa.toString().contains(query)
+        }.sortedBy { it.numeroCamisa }
     }
 
-    val goleiros = jogadoresFiltrados.filter { it.isPosicaoGoleiro }
-    val linha = jogadoresFiltrados.filter { !it.isPosicaoGoleiro }
+    val goleiros = filtrados.filter { it.isPosicaoGoleiro }
+    val linha = filtrados.filter { !it.isPosicaoGoleiro }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Selecionar Jogador") },
+        title = { Text("Escalar Atleta", fontWeight = FontWeight.Bold) },
         text = {
             Column {
                 OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    label = { Text("Buscar") },
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = { Text("Buscar por nome ou nº...") },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    shape = MaterialTheme.shapes.medium
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                if (jogadoresFiltrados.isEmpty()) {
-                    Text(
-                        text = "Nenhum jogador disponivel",
-                        modifier = Modifier.padding(16.dp)
-                    )
+                if (filtrados.isEmpty()) {
+                    Text("Nenhum atleta disponível", modifier = Modifier.padding(16.dp), color = Color.Gray)
                 } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxWidth().height(400.dp)
-                    ) {
+                    LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
                         if (goleiros.isNotEmpty()) {
-                            item {
-                                Text(
-                                    text = "GOLEIROS",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    modifier = Modifier.padding(vertical = 8.dp)
-                                )
-                            }
-                            items(goleiros) { jogador ->
-                                JogadorSelectItem(jogador = jogador, onSelect = onSelect)
-                            }
+                            item { SectionHeader("GOLEIROS") }
+                            items(goleiros) { jog -> ItemSelecao(jog, onSelect) }
                         }
 
                         if (linha.isNotEmpty()) {
-                            item {
-                                Text(
-                                    text = "LINHA",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    modifier = Modifier.padding(vertical = 8.dp)
-                                )
-                            }
-                            items(linha) { jogador ->
-                                JogadorSelectItem(jogador = jogador, onSelect = onSelect)
-                            }
+                            item { SectionHeader("JOGADORES DE LINHA") }
+                            items(linha) { jog -> ItemSelecao(jog, onSelect) }
                         }
                     }
                 }
@@ -100,25 +75,35 @@ fun SelecionarJogadorParaTimeDialog(
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar") }
+            TextButton(onClick = onDismiss) { Text("CANCELAR", color = Color.Gray) }
         }
     )
 }
 
 @Composable
-private fun JogadorSelectItem(jogador: Jogador, onSelect: (Jogador) -> Unit) {
-    Card(
+private fun SectionHeader(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelSmall,
+        color = Color(0xFF4B0082),
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(vertical = 8.dp)
+    )
+}
+
+@Composable
+private fun ItemSelecao(jogador: Jogador, onSelect: (Jogador) -> Unit) {
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .clickable { onSelect(jogador) }
+            .clickable { onSelect(jogador) },
+        shape = MaterialTheme.shapes.small,
+        color = Color(0xFFF3F0F5)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(jogador.nome)
-            Text("#${jogador.numeroCamisa}")
+        Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(jogador.nome, fontWeight = FontWeight.Medium)
+            Text("#${jogador.numeroCamisa}", fontWeight = FontWeight.Bold, color = Color(0xFF4B0082))
         }
     }
 }

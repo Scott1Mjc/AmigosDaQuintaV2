@@ -3,12 +3,18 @@ package com.example.amigosdaquinta.data.model
 import com.example.amigosdaquinta.data.local.entity.Jogo
 
 /**
- * Representa o estado completo de uma sessão de jogos (dia de pelada).
+ * Representa o estado consolidado de uma sessão de jogos.
+ * 
+ * Este modelo agrupa as informações de uma data de pelada, incluindo a lista de 
+ * jogos realizados, a partida atual e o estado da fila de espera.
  *
- * É um snapshot imutável do estado atual, mantido pelo SessaoViewModel via StateFlow.
- *
- * [timeBrancoProximo] e [timeVermelhoProximo] são pré-calculados pelo FormadorDeTimes
- * após cada jogo, permitindo que a UI exiba a prévia do próximo confronto antes de confirmá-lo.
+ * @property data Timestamp da data da sessão.
+ * @property jogos Lista de todas as partidas registradas no dia.
+ * @property jogoAtual Partida que está em andamento (se houver).
+ * @property filaEspera Lista de jogadores aguardando para entrar em campo.
+ * @property timeBrancoProximo Sugestão de escalação para o Time Branco.
+ * @property timeVermelhoProximo Sugestão de escalação para o Time Vermelho.
+ * @property totalPresentes Contagem total de jogadores na sessão.
  */
 data class SessaoJogos(
     val data: Long,

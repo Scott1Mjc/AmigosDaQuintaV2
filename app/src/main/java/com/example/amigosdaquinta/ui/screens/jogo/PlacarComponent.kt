@@ -9,12 +9,16 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
 /**
- * Componente unificado de placar e cronômetro otimizado para economizar espaço.
+ * Componente Central de Placar e Cronômetro.
+ * 
+ * Unifica a exibição da pontuação das equipes com o controle de tempo da partida.
+ * Oferece botões rápidos para registro de gols e pausar/retomar o tempo.
  */
 @Composable
 fun PlacarComponent(
@@ -26,112 +30,90 @@ fun PlacarComponent(
     onTempoEsgotado: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var tempoRestanteSegundos by rememberSaveable { mutableIntStateOf(duracaoMinutos * 60) }
-    var estaPausado by rememberSaveable { mutableStateOf(false) }
-    val tempoInicial by rememberSaveable { mutableIntStateOf(duracaoMinutos * 60) }
+    var tempoRestante by rememberSaveable { mutableIntStateOf(duracaoMinutos * 60) }
+    var pausado by rememberSaveable { mutableStateOf(false) }
+    val tempoInicial = rememberSaveable { duracaoMinutos * 60 }
 
-    LaunchedEffect(estaPausado, tempoRestanteSegundos) {
-        if (!estaPausado && tempoRestanteSegundos > 0) {
+    LaunchedEffect(pausado, tempoRestante) {
+        if (!pausado && tempoRestante > 0) {
             delay(1000L)
-            tempoRestanteSegundos--
-            if (tempoRestanteSegundos == 0) onTempoEsgotado()
+            tempoRestante--
+            if (tempoRestante == 0) onTempoEsgotado()
         }
     }
 
-    val minutos = tempoRestanteSegundos / 60
-    val segundos = tempoRestanteSegundos % 60
+    val min = tempoRestante / 60
+    val seg = tempoRestante % 60
 
-    Card(
+    Surface(
         modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        shape = MaterialTheme.shapes.medium,
+        color = Color(0xFFEBE8EC)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 24.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // TIME BRANCO + BOTÃO GOL
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
+            // LADO BRANCO
+            ScoreActionColumn(
+                label = "BRANCO",
+                score = placarBranco,
+                buttonColor = Color(0xFF4B0082),
+                onGol = onGolBranco,
                 modifier = Modifier.weight(1f)
-            ) {
-                Text("BRANCO", style = MaterialTheme.typography.titleSmall)
-                Text(
-                    placarBranco.toString(),
-                    style = MaterialTheme.typography.displayMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Button(
-                    onClick = onGolBranco,
-                    modifier = Modifier.height(32.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
-                ) {
-                    Text("+1 GOL", style = MaterialTheme.typography.labelSmall)
-                }
-            }
+            )
 
-            // CRONÔMETRO CENTRAL
+            // CENTRO: CRONÔMETRO
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-                modifier = Modifier.weight(1.2f)
+                modifier = Modifier.weight(1.5f)
             ) {
                 Text(
-                    text = String.format("%02d:%02d", minutos, segundos),
+                    text = String.format("%02d:%02d", min, seg),
                     style = MaterialTheme.typography.displayLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = if (tempoRestanteSegundos <= 300) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                    fontWeight = FontWeight.Black,
+                    color = if (tempoRestante <= 300 && tempoRestante > 0) Color.Red else Color.Black
                 )
                 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    IconButton(
-                        onClick = { estaPausado = !estaPausado },
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            if (estaPausado) Icons.Default.PlayArrow else Icons.Default.Pause,
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp)
-                        )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    IconButton(onClick = { pausado = !pausado }, modifier = Modifier.size(40.dp)) {
+                        Icon(if (pausado) Icons.Default.PlayArrow else Icons.Default.Pause, null, modifier = Modifier.size(32.dp))
                     }
                     
                     LinearProgressIndicator(
-                        progress = { tempoRestanteSegundos.toFloat() / tempoInicial.toFloat() },
-                        modifier = Modifier
-                            .width(100.dp)
-                            .height(6.dp),
-                        strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+                        progress = { tempoRestante.toFloat() / tempoInicial.toFloat() },
+                        modifier = Modifier.width(120.dp).height(8.dp),
+                        color = if (tempoRestante <= 300) Color.Red else Color(0xFF4B0082),
+                        trackColor = Color.White
                     )
                 }
             }
 
-            // TIME VERMELHO + BOTÃO GOL
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
+            // LADO VERMELHO
+            ScoreActionColumn(
+                label = "VERMELHO",
+                score = placarVermelho,
+                buttonColor = Color(0xFFC62828),
+                onGol = onGolVermelho,
                 modifier = Modifier.weight(1f)
-            ) {
-                Text("VERMELHO", style = MaterialTheme.typography.titleSmall)
-                Text(
-                    placarVermelho.toString(),
-                    style = MaterialTheme.typography.displayMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Button(
-                    onClick = onGolVermelho,
-                    modifier = Modifier.height(32.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
-                ) {
-                    Text("+1 GOL", style = MaterialTheme.typography.labelSmall)
-                }
-            }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ScoreActionColumn(label: String, score: Int, buttonColor: Color, onGol: () -> Unit, modifier: Modifier = Modifier) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = Color.Gray, fontWeight = FontWeight.Bold)
+        Text(score.toString(), style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold, color = Color.Black)
+        Button(
+            onClick = onGol,
+            colors = ButtonDefaults.buttonColors(containerColor = buttonColor),
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier.height(36.dp)
+        ) {
+            Text("GOL", fontWeight = FontWeight.Bold)
         }
     }
 }

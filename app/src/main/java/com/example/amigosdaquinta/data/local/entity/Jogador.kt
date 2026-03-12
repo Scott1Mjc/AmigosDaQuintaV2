@@ -4,15 +4,13 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 /**
- * Entidade que representa um jogador cadastrado no app.
+ * Representa um jogador cadastrado no sistema Amigos da Quinta.
  *
- * [numeroCamisa] é armazenado como Int, mas o JogadorDao usa CAST para ordenacao
- * correta em queries SQL (evita ordenacao lexicografica).
- *
- * [ativo] controla inativacao logica — jogadores removidos nao sao deletados
- * do banco para preservar historico de participacoes e estatisticas.
- *
- * [foto] reservado para uso futuro (URI ou caminho local da imagem).
+ * @property id Identificador único gerado automaticamente pelo banco de dados.
+ * @property nome Nome completo ou apelido do jogador.
+ * @property numeroCamisa Número identificador oficial do jogador (0-999).
+ * @property isPosicaoGoleiro Indica se o jogador atua preferencialmente como goleiro.
+ * @property ativo Define se o jogador está ativo. Inativação lógica é usada para preservar o histórico.
  */
 @Entity(tableName = "jogadores")
 data class Jogador(
@@ -24,7 +22,7 @@ data class Jogador(
     val ativo: Boolean = true,
 ) {
     init {
-        require(nome.isNotBlank()) { "Nome não pode ser vazio" }
-        require(numeroCamisa in 0..999) { "Número da camisa deve estar entre 0 e 999" }
+        require(nome.isNotBlank()) { "O nome do jogador não pode estar em branco" }
+        require(numeroCamisa in 0..999) { "O número da camisa deve estar entre 0 e 999" }
     }
 }

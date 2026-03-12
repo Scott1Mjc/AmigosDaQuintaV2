@@ -1,4 +1,4 @@
-package com.example.amigosdaquinta.ui.screens.presenca
+package com.example.amigosdaquinta.ui.presenca
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -7,17 +7,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.amigosdaquinta.data.local.entity.Jogador
 
 /**
- * Dialog de selecao de jogador para adicionar a lista de presenca.
- *
- * Filtra por nome, numero de camisa ou posicao ("goleiro").
- * Jogadores ja presentes na lista devem ser filtrados antes de passar [jogadores].
- *
- * A selecao e imediata: tocar no item chama [onSelect] e fecha o dialog
- * (responsabilidade de fechar e do chamador via [onDismiss]).
+ * Diálogo para seleção de atletas cadastrados.
+ * 
+ * Utilizado para adicionar jogadores à lista de presença da sessão.
  */
 @Composable
 fun SelecionarJogadorDialog(
@@ -25,47 +23,36 @@ fun SelecionarJogadorDialog(
     onDismiss: () -> Unit,
     onSelect: (Jogador) -> Unit
 ) {
-    var searchQuery by remember { mutableStateOf("") }
+    var query by remember { mutableStateOf("") }
 
-    val jogadoresFiltrados = remember(jogadores, searchQuery) {
-        if (searchQuery.isBlank()) {
-            jogadores.sortedBy { it.numeroCamisa }
-        } else {
-            jogadores.filter {
-                it.nome.contains(searchQuery, ignoreCase = true) ||
-                        it.numeroCamisa.toString().contains(searchQuery) ||
-                        (it.isPosicaoGoleiro && "goleiro".contains(searchQuery, ignoreCase = true))
-            }.sortedBy { it.numeroCamisa }
-        }
+    val filtrados = remember(jogadores, query) {
+        jogadores.filter {
+            it.nome.contains(query, ignoreCase = true) || it.numeroCamisa.toString().contains(query)
+        }.sortedBy { it.numeroCamisa }
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Adicionar a Lista") },
+        title = { Text("Selecionar Atleta", fontWeight = FontWeight.Bold) },
         text = {
             Column {
                 OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    label = { Text("Buscar jogador") },
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = { Text("Pesquisar por nome ou nº...") },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    shape = MaterialTheme.shapes.medium
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                if (jogadoresFiltrados.isEmpty()) {
-                    Text(
-                        text = "Nenhum jogador disponivel",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(16.dp)
-                    )
+                if (filtrados.isEmpty()) {
+                    Text("Nenhum atleta disponível", modifier = Modifier.padding(16.dp), color = Color.Gray)
                 } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxWidth().height(300.dp)
-                    ) {
-                        items(jogadoresFiltrados) { jogador ->
-                            JogadorListItem(jogador = jogador, onClick = { onSelect(jogador) })
+                    LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
+                        items(filtrados) { jog ->
+                            ItemSelecaoJogador(jogador = jog, onClick = { onSelect(jog) })
                         }
                     }
                 }
@@ -73,25 +60,21 @@ fun SelecionarJogadorDialog(
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar") }
+            TextButton(onClick = onDismiss) { Text("CANCELAR", color = Color.Gray) }
         }
     )
 }
 
 @Composable
-private fun JogadorListItem(jogador: Jogador, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .clickable(onClick = onClick)
+private fun ItemSelecaoJogador(jogador: Jogador, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(onClick = onClick),
+        shape = MaterialTheme.shapes.small,
+        color = Color(0xFFF3F0F5)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(jogador.nome)
-            Text("#${jogador.numeroCamisa}")
+        Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(jogador.nome, fontWeight = FontWeight.Medium)
+            Text("#${jogador.numeroCamisa}", fontWeight = FontWeight.Bold, color = Color(0xFF4B0082))
         }
     }
 }

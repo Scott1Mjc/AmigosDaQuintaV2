@@ -19,6 +19,12 @@ import com.example.amigosdaquinta.data.local.entity.TimeColor
 import com.example.amigosdaquinta.viewmodel.JogadoresViewModel
 import com.example.amigosdaquinta.viewmodel.SessaoViewModel
 
+/**
+ * Tela de Jogo em Andamento.
+ * 
+ * Gerencia a partida em tempo real, permitindo registro de gols, substituições e 
+ * controle de cronômetro. Apresenta uma visão lateral da fila de espera para substituições.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JogoScreen(
@@ -26,7 +32,6 @@ fun JogoScreen(
     jogadoresViewModel: JogadoresViewModel,
     timeBranco: List<Jogador>,
     timeVermelho: List<Jogador>,
-    onNavigateBack: () -> Unit,
     onFinalizarJogo: (TimeColor?) -> Unit
 ) {
     val placarBranco by sessaoViewModel.placarBranco.collectAsState()
@@ -34,32 +39,25 @@ fun JogoScreen(
     val jogadores by jogadoresViewModel.jogadores.collectAsState()
     val listaPresenca by sessaoViewModel.listaPresenca.collectAsState()
     val duracaoMinutos by sessaoViewModel.duracaoJogoAtualMinutos.collectAsState()
-    val jogadoresSubstituidosIds by sessaoViewModel.jogadoresSubstituidosIds.collectAsState()
-    val jogadoresQueEntraramSubstitutosIds by sessaoViewModel.jogadoresQueEntraramSubstitutosIds.collectAsState()
+    val substituidoresIds by sessaoViewModel.jogadoresSubstituidosIds.collectAsState()
+    val entrouSubstitutoIds by sessaoViewModel.jogadoresQueEntraramSubstitutosIds.collectAsState()
 
     var showFinalizarDialog by remember { mutableStateOf(false) }
     var finalizacaoAutomatica by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
-    var showSubstituicaoDialog by remember { mutableStateOf(false) }
+    var showSubDialog by remember { mutableStateOf(false) }
     var jogadorParaSubstituir by remember { mutableStateOf<Pair<Jogador, TimeColor>?>(null) }
 
-    val jogadoresFiltrados by remember(jogadores, listaPresenca, searchQuery, jogadoresSubstituidosIds) {
+    // Filtragem e ordenação da fila de espera lateral
+    val jogadoresFilaFiltrados by remember(jogadores, listaPresenca, searchQuery, substituidoresIds) {
         derivedStateOf {
-            val filtered = if (searchQuery.isBlank()) {
-                jogadores
-            } else {
-                jogadores.filter { jogador ->
-                    jogador.nome.contains(searchQuery, ignoreCase = true) ||
-                            jogador.numeroCamisa.toString().contains(searchQuery)
-                }
-            }
-
-            filtered.sortedWith(
-                compareBy<Jogador> { jogador ->
-                    jogadoresSubstituidosIds.contains(jogador.id)
-                }.thenBy { jogador ->
-                    !listaPresenca.any { it.first.id == jogador.id }
-                }.thenBy { it.nome }
+            jogadores.filter { jog ->
+                val matchSearch = jog.nome.contains(searchQuery, ignoreCase = true) || jog.numeroCamisa.toString().contains(searchQuery)
+                matchSearch
+            }.sortedWith(
+                compareBy<Jogador> { substituidoresIds.contains(it.id) }
+                .thenBy { !listaPresenca.any { p -> p.first.id == it.id } }
+                .thenBy { it.nome }
             )
         }
     }
@@ -67,60 +65,32 @@ fun JogoScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Jogo em Andamento") }
+                title = { Text("Partida em Andamento", color = Color.Black) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
-        }
+        },
+        containerColor = Color(0xFFF8F9FA)
     ) { padding ->
         Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
+            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Card(
-                modifier = Modifier
-                    .width(300.dp)
-                    .fillMaxHeight()
-            ) {
-                Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                    Text("Lista de Jogadores", style = MaterialTheme.typography.titleLarge)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Pesquisar...") },
-                        leadingIcon = { Icon(Icons.Default.Search, "Pesquisar") },
-                        singleLine = true
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(items = jogadoresFiltrados, key = { it.id }) { jogador ->
-                            val jaConfirmado = listaPresenca.any { it.first.id == jogador.id }
-                            val foiSubstituido = jogadoresSubstituidosIds.contains(jogador.id)
-                            val ordemChegada = if (jaConfirmado) {
-                                listaPresenca.indexOfFirst { it.first.id == jogador.id } + 1
-                            } else {
-                                null
-                            }
-                            
-                            JogadorItemLista(
-                                jogador = jogador,
-                                confirmado = jaConfirmado,
-                                substituido = foiSubstituido,
-                                ordemChegada = ordemChegada,
-                                onTogglePresenca = {
-                                    if (jaConfirmado) sessaoViewModel.removerDaListaPresenca(jogador.id)
-                                    else sessaoViewModel.adicionarAListaPresenca(jogador)
-                                }
-                            )
-                        }
-                    }
+            // COLUNA LATERAL: FILA DE ESPERA
+            FilaEsperaLateral(
+                jogadores = jogadoresFilaFiltrados,
+                listaPresenca = listaPresenca,
+                substituidoresIds = substituidoresIds,
+                searchQuery = searchQuery,
+                onSearchChange = { searchQuery = it },
+                onTogglePresenca = { jogador, jaConfirmado ->
+                    if (jaConfirmado) sessaoViewModel.removerDaListaPresenca(jogador.id)
+                    else sessaoViewModel.adicionarAListaPresenca(jogador)
                 }
-            }
+            )
 
+            // COLUNA CENTRAL: PLACAR E TIMES
             Column(modifier = Modifier.fillMaxSize().weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // Componente de Placar e Cronômetro
                 PlacarComponent(
                     placarBranco = placarBranco,
                     placarVermelho = placarVermelho,
@@ -131,34 +101,35 @@ fun JogoScreen(
                         finalizacaoAutomatica = true
                         showFinalizarDialog = true
                     },
-                    modifier = Modifier.fillMaxWidth().weight(0.25f)
+                    modifier = Modifier.fillMaxWidth().weight(0.3f)
                 )
 
-                Row(modifier = Modifier.fillMaxWidth().weight(0.65f), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    EscalacaoCardComSubstituicao(
-                        modifier = Modifier.weight(1f),
+                // Cards de Escalação com Substituição
+                Row(modifier = Modifier.fillMaxWidth().weight(0.6f), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    EscalacaoAtivaCard(
                         titulo = "TIME BRANCO",
                         jogadores = timeBranco,
-                        cor = MaterialTheme.colorScheme.primaryContainer,
-                        jogadoresSubstituidosIds = jogadoresSubstituidosIds,
-                        jogadoresQueEntraramSubstitutosIds = jogadoresQueEntraramSubstitutosIds,
-                        onSubstituir = { jogador ->
-                            jogadorParaSubstituir = Pair(jogador, TimeColor.BRANCO)
-                            showSubstituicaoDialog = true
-                        }
+                        containerColor = Color(0xFFE8E2FF),
+                        substituidoresIds = substituidoresIds,
+                        entrouSubstitutoIds = entrouSubstitutoIds,
+                        onSubstituir = {
+                            jogadorParaSubstituir = Pair(it, TimeColor.BRANCO)
+                            showSubDialog = true
+                        },
+                        modifier = Modifier.weight(1f)
                     )
 
-                    EscalacaoCardComSubstituicao(
-                        modifier = Modifier.weight(1f),
+                    EscalacaoAtivaCard(
                         titulo = "TIME VERMELHO",
                         jogadores = timeVermelho,
-                        cor = MaterialTheme.colorScheme.errorContainer,
-                        jogadoresSubstituidosIds = jogadoresSubstituidosIds,
-                        jogadoresQueEntraramSubstitutosIds = jogadoresQueEntraramSubstitutosIds,
-                        onSubstituir = { jogador ->
-                            jogadorParaSubstituir = Pair(jogador, TimeColor.VERMELHO)
-                            showSubstituicaoDialog = true
-                        }
+                        containerColor = Color(0xFFFFE1E1),
+                        substituidoresIds = substituidoresIds,
+                        entrouSubstitutoIds = entrouSubstitutoIds,
+                        onSubstituir = {
+                            jogadorParaSubstituir = Pair(it, TimeColor.VERMELHO)
+                            showSubDialog = true
+                        },
+                        modifier = Modifier.weight(1f)
                     )
                 }
 
@@ -167,195 +138,138 @@ fun JogoScreen(
                         finalizacaoAutomatica = false
                         showFinalizarDialog = true
                     },
-                    modifier = Modifier.fillMaxWidth().weight(0.1f).heightIn(min = 56.dp)
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4B0082))
                 ) {
-                    Text("Finalizar Jogo", style = MaterialTheme.typography.titleMedium)
+                    Text("ENCERRAR PARTIDA", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
             }
         }
     }
 
-    if (showSubstituicaoDialog && jogadorParaSubstituir != null) {
+    // Dialogs
+    if (showSubDialog && jogadorParaSubstituir != null) {
         SubstituicaoDialog(
             jogadorSaindo = jogadorParaSubstituir!!.first,
             time = jogadorParaSubstituir!!.second,
-            jogadoresDisponiveis = jogadores.filter { jogador ->
-                !timeBranco.any { it.id == jogador.id } && !timeVermelho.any { it.id == jogador.id }
+            jogadoresDisponiveis = jogadores.filter { j -> 
+                !timeBranco.any { it.id == j.id } && !timeVermelho.any { it.id == j.id } 
             },
-            onDismiss = {
-                showSubstituicaoDialog = false
-                jogadorParaSubstituir = null
-            },
-            onConfirm = { jogadorEntrando, isLesionado ->
-                sessaoViewModel.substituirJogador(
-                    jogadorSaindo = jogadorParaSubstituir!!.first,
-                    jogadorEntrando = jogadorEntrando,
-                    time = jogadorParaSubstituir!!.second,
-                    isLesionado = isLesionado
-                )
-                showSubstituicaoDialog = false
-                jogadorParaSubstituir = null
+            onDismiss = { showSubDialog = false },
+            onConfirm = { entrando, lesionado ->
+                sessaoViewModel.substituirJogador(jogadorParaSubstituir!!.first, entrando, jogadorParaSubstituir!!.second, lesionado)
+                showSubDialog = false
             }
         )
     }
 
     if (showFinalizarDialog) {
-        AlertDialog(
-            onDismissRequest = { if (!finalizacaoAutomatica) showFinalizarDialog = false },
-            title = { Text(if (finalizacaoAutomatica) "Tempo Esgotado!" else "Finalizar Jogo") },
-            text = {
-                Column {
-                    Text("Placar Final: $placarBranco x $placarVermelho")
-                    Text("Confirmar resultado?")
+        ConfirmarResultadoDialog(
+            placarBranco = placarBranco,
+            placarVermelho = placarVermelho,
+            isAutomatico = finalizacaoAutomatica,
+            onDismiss = { if (!finalizacaoAutomatica) showFinalizarDialog = false },
+            onConfirm = {
+                val vencedor = when {
+                    placarBranco > placarVermelho -> TimeColor.BRANCO
+                    placarVermelho > placarBranco -> TimeColor.VERMELHO
+                    else -> null
                 }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val vencedor = when {
-                            placarBranco > placarVermelho -> TimeColor.BRANCO
-                            placarVermelho > placarBranco -> TimeColor.VERMELHO
-                            else -> null
-                        }
-                        sessaoViewModel.finalizarJogo(vencedor)
-                        onFinalizarJogo(vencedor)
-                        showFinalizarDialog = false
-                    }
-                ) { Text("Confirmar") }
-            },
-            dismissButton = if (!finalizacaoAutomatica) {
-                { TextButton(onClick = { showFinalizarDialog = false }) { Text("Cancelar") } }
-            } else null
+                sessaoViewModel.finalizarJogo(vencedor)
+                onFinalizarJogo(vencedor)
+                showFinalizarDialog = false
+            }
         )
     }
 }
 
 @Composable
-private fun JogadorItemLista(
-    jogador: Jogador,
-    confirmado: Boolean,
-    substituido: Boolean,
-    ordemChegada: Int?,
-    onTogglePresenca: () -> Unit
+private fun FilaEsperaLateral(
+    jogadores: List<Jogador>,
+    listaPresenca: List<Pair<Jogador, Long>>,
+    substituidoresIds: Set<Long>,
+    searchQuery: String,
+    onSearchChange: (String) -> Unit,
+    onTogglePresenca: (Jogador, Boolean) -> Unit
 ) {
-    val alphaValue = if (substituido) 0.6f else 1f
-    val color = if (substituido) Color(0xFF424242) else MaterialTheme.colorScheme.surface
-    
-    Surface(
-        modifier = Modifier.fillMaxWidth().alpha(alphaValue),
-        shape = MaterialTheme.shapes.small,
-        color = color,
-        tonalElevation = 1.dp
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Checkbox(checked = confirmado, onCheckedChange = { onTogglePresenca() }, enabled = !substituido)
-            
-            if (confirmado && ordemChegada != null) {
-                Text(
-                    text = "${ordemChegada}°", 
-                    style = MaterialTheme.typography.labelLarge, 
-                    fontWeight = FontWeight.Bold, 
-                    color = if (substituido) Color.White else MaterialTheme.colorScheme.primary, 
-                    modifier = Modifier.width(32.dp)
-                )
-            } else {
-                Spacer(modifier = Modifier.width(32.dp))
-            }
-            
-            Text("|", style = MaterialTheme.typography.titleLarge, color = if (substituido) Color.Gray else MaterialTheme.colorScheme.outline)
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = jogador.nome, 
-                    style = MaterialTheme.typography.bodyMedium, 
-                    color = if (substituido) Color.White else Color.Black
-                )
-                Text(
-                    text = if (substituido) "Substituído" else if (jogador.isPosicaoGoleiro) "Goleiro" else "Linha",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (substituido) Color.LightGray else Color.DarkGray
-                )
-            }
-            Text(
-                text = "#${jogador.numeroCamisa}", 
-                style = MaterialTheme.typography.labelLarge, 
-                color = if (substituido) Color.White else Color.Black
+    Surface(modifier = Modifier.width(300.dp).fillMaxHeight(), shape = MaterialTheme.shapes.medium, color = Color(0xFFEBE8EC)) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Fila de Espera", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = onSearchChange,
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Pesquisar...") },
+                leadingIcon = { Icon(Icons.Default.Search, null) },
+                singleLine = true,
+                shape = MaterialTheme.shapes.small,
+                colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color.White, unfocusedContainerColor = Color.White)
             )
+            Spacer(modifier = Modifier.height(12.dp))
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(items = jogadores, key = { it.id }) { jogador ->
+                    val jaConfirmado = listaPresenca.any { it.first.id == jogador.id }
+                    val foiSubstituido = substituidoresIds.contains(jogador.id)
+                    val ordem = if (jaConfirmado) listaPresenca.indexOfFirst { it.first.id == jogador.id } + 1 else null
+                    
+                    ItemFilaJogo(jogador, jaConfirmado, foiSubstituido, ordem, onTogglePresenca)
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun EscalacaoCardComSubstituicao(
-    modifier: Modifier = Modifier,
-    titulo: String,
-    jogadores: List<Jogador>,
-    cor: androidx.compose.ui.graphics.Color,
-    jogadoresSubstituidosIds: Set<Long>,
-    jogadoresQueEntraramSubstitutosIds: Set<Long>,
-    onSubstituir: (Jogador) -> Unit
-) {
-    // Ordenação: 
-    // 1. Quem NÃO foi substituído (em campo) deve vir ANTES de quem foi substituído (S)
-    // 2. Entre os que estão em campo, o GOLEIRO deve vir PRIMEIRO
-    // 3. Depois o critério de entrada (Titulares vs Substitutos (E))
-    // 4. Por fim, ordem alfabética
-    val jogadoresOrdenados = remember(jogadores, jogadoresSubstituidosIds, jogadoresQueEntraramSubstitutosIds) {
-        jogadores.sortedWith(
-            compareBy<Jogador> { jogador ->
-                // Critério 1: Substituídos por último
-                jogadoresSubstituidosIds.contains(jogador.id)
-            }.thenBy { jogador ->
-                // Critério 2: Goleiro primeiro (false vem antes de true no boolean ascending, 
-                // então invertemos ou usamos compareByDescending)
-                !jogador.isPosicaoGoleiro
-            }.thenBy { jogador ->
-                // Critério 3: Quem entrou por substituição depois dos titulares
-                jogadoresQueEntraramSubstitutosIds.contains(jogador.id)
-            }.thenBy { it.nome }
-        )
+private fun ItemFilaJogo(jogador: Jogador, confirmado: Boolean, substituido: Boolean, ordem: Int?, onToggle: (Jogador, Boolean) -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().alpha(if (substituido) 0.5f else 1f),
+        shape = MaterialTheme.shapes.small,
+        color = if (substituido) Color(0xFF424242) else Color.White
+    ) {
+        Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(checked = confirmado, onCheckedChange = { onToggle(jogador, confirmado) }, enabled = !substituido)
+            Text(
+                text = if (confirmado) "${ordem}º" else "-",
+                style = MaterialTheme.typography.labelMedium,
+                color = if (substituido) Color.White else Color(0xFF4B0082),
+                modifier = Modifier.width(24.dp)
+            )
+            Column(modifier = Modifier.weight(1f).padding(horizontal = 4.dp)) {
+                Text(jogador.nome, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = if (substituido) Color.White else Color.Black)
+                Text(if (substituido) "Saiu (S)" else if (jogador.isPosicaoGoleiro) "Goleiro" else "Linha", style = MaterialTheme.typography.labelSmall, color = if (substituido) Color.LightGray else Color.Gray)
+            }
+            Surface(shape = MaterialTheme.shapes.small, color = if (substituido) Color(0xFF616161) else Color(0xFFF0EDFF)) {
+                Text("#${jogador.numeroCamisa}", modifier = Modifier.padding(4.dp), style = MaterialTheme.typography.labelSmall, color = if (substituido) Color.White else Color(0xFF4B0082))
+            }
+        }
     }
+}
 
-    Card(modifier = modifier.fillMaxHeight(), colors = CardDefaults.cardColors(containerColor = cor)) {
-        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-            Text(text = titulo, style = MaterialTheme.typography.titleMedium, color = Color.Black)
-            Spacer(modifier = Modifier.height(12.dp))
-            LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(jogadoresOrdenados) { jogador ->
-                    val foiSubstituido = jogadoresSubstituidosIds.contains(jogador.id)
-                    val entrouComoSubstituto = jogadoresQueEntraramSubstitutosIds.contains(jogador.id)
-                    val alphaValue = if (foiSubstituido) 0.6f else 1f
-                    
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().alpha(alphaValue), 
-                        shape = MaterialTheme.shapes.small, 
-                        tonalElevation = 2.dp,
-                        color = if (foiSubstituido) Color(0xFF424242) else Color.White
-                    ) {
-                        Row(modifier = Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            val prefixo = if (entrouComoSubstituto && !foiSubstituido) "(E) " else ""
-                            val sufixo = if (foiSubstituido) " (S)" else ""
-                            
-                            Text(
-                                text = (if (jogador.isPosicaoGoleiro) "[GOL] " else "") + prefixo + jogador.nome + sufixo,
-                                style = MaterialTheme.typography.bodyMedium, 
-                                modifier = Modifier.weight(1f),
-                                color = if (foiSubstituido) Color.White else Color.Black
-                            )
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "#${jogador.numeroCamisa}", 
-                                    style = MaterialTheme.typography.bodyMedium, 
-                                    color = if (foiSubstituido) Color.White else Color.Black
-                                )
-                                if (!foiSubstituido) {
-                                    IconButton(onClick = { onSubstituir(jogador) }, modifier = Modifier.size(32.dp)) {
-                                        Icon(Icons.Default.SwapHoriz, contentDescription = "Substituir", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                                    }
+@Composable
+private fun EscalacaoAtivaCard(titulo: String, jogadores: List<Jogador>, containerColor: Color, substituidoresIds: Set<Long>, entrouSubstitutoIds: Set<Long>, onSubstituir: (Jogador) -> Unit, modifier: Modifier = Modifier) {
+    Surface(modifier = modifier.fillMaxHeight(), shape = MaterialTheme.shapes.medium, color = containerColor) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(titulo, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
+            val ordenados = jogadores.sortedWith(
+                compareBy<Jogador> { substituidoresIds.contains(it.id) }
+                .thenBy { !it.isPosicaoGoleiro }
+                .thenBy { entrouSubstitutoIds.contains(it.id) }
+                .thenBy { it.nome }
+            )
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(ordenados) { jog ->
+                    val s = substituidoresIds.contains(jog.id)
+                    val e = entrouSubstitutoIds.contains(jog.id)
+                    Surface(modifier = Modifier.fillMaxWidth().alpha(if (s) 0.6f else 1f), shape = MaterialTheme.shapes.small, color = if (s) Color(0xFF424242) else Color.White) {
+                        Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            val txt = (if (jog.isPosicaoGoleiro) "[GOL] " else "") + (if (e && !s) "(E) " else "") + jog.nome + (if (s) " (S)" else "")
+                            Text(txt, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f), color = if (s) Color.White else Color.Black)
+                            Text("#${jog.numeroCamisa}", style = MaterialTheme.typography.bodySmall, color = if (s) Color.White else Color.Black)
+                            if (!s) {
+                                IconButton(onClick = { onSubstituir(jog) }, modifier = Modifier.size(24.dp)) {
+                                    Icon(Icons.Default.SwapHoriz, null, tint = Color(0xFF4B0082), modifier = Modifier.size(16.dp))
                                 }
                             }
                         }
@@ -364,4 +278,15 @@ private fun EscalacaoCardComSubstituicao(
             }
         }
     }
+}
+
+@Composable
+private fun ConfirmarResultadoDialog(placarBranco: Int, placarVermelho: Int, isAutomatico: Boolean, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (isAutomatico) "Tempo Esgotado!" else "Encerrar Partida") },
+        text = { Text("O placar final foi $placarBranco x $placarVermelho. Deseja confirmar e processar a rotatividade dos times?") },
+        confirmButton = { Button(onClick = onConfirm, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4B0082))) { Text("Confirmar") } },
+        dismissButton = if (!isAutomatico) { { TextButton(onClick = onDismiss) { Text("Cancelar") } } } else null
+    )
 }

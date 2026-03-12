@@ -21,9 +21,14 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * Tela de detalhes de uma partida padronizada com o estilo Print 1.
- * Mantém o padrão de cores dos times (Branco/Vermelho) nos cards de escalação.
- * Jogadores substituídos retornam ao padrão de fundo preto com letras brancas.
+ * Tela de Detalhes de uma Partida do Histórico.
+ * 
+ * Exibe o placar final centralizado e a escalação completa de ambos os times, 
+ * destacando quem foi substituído (S) e quem entrou durante o jogo (E).
+ * 
+ * @param jogoId Identificador da partida a ser exibida.
+ * @param viewModel ViewModel de histórico para carregar os dados.
+ * @param onNavigateBack Callback para retornar à lista de histórico.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,10 +48,10 @@ fun DetalhesJogoScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Detalhes do Jogo", color = Color.Black) },
+                title = { Text("Detalhes da Partida", color = Color.Black) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar", tint = Color.Black)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", tint = Color.Black)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
@@ -55,121 +60,40 @@ fun DetalhesJogoScreen(
         containerColor = Color(0xFFF8F9FA)
     ) { padding ->
         if (detalhes == null) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
+            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Color(0xFF4B0082))
             }
         } else {
             val jogo = detalhes!!.jogo
 
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp),
+                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // CARD DE RESULTADO (Alinhado no meio - Print 4)
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium,
-                    color = Color(0xFFEBE8EC)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "${jogo.numeroJogo} Jogo",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
-                            )
-                            Text(
-                                text = "${dateFormat.format(Date(jogo.data))} ${timeFormat.format(Date(jogo.data))}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.DarkGray
-                            )
-                        }
+                // Painel de Resultado Centralizado
+                PainelResultadoDetalhes(
+                    jogo = jogo,
+                    dateFormat = dateFormat,
+                    timeFormat = timeFormat
+                )
 
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                "BRANCO",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = Color.Gray
-                            )
-                            Text(
-                                text = "  ${jogo.placarBranco} x ${jogo.placarVermelho}  ",
-                                style = MaterialTheme.typography.displayLarge,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 56.sp,
-                                color = Color.Black
-                            )
-                            Text(
-                                "VERMELHO",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = Color.Gray
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        val (textoVencedor, corTexto) = when (jogo.timeVencedor) {
-                            TimeColor.BRANCO -> "Vencedor: Branco" to Color.Black
-                            TimeColor.VERMELHO -> "Vencedor: Vermelho" to Color.Black
-                            null -> "Empate" to Color.Black
-                        }
-                        
-                        Text(
-                            text = textoVencedor,
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = corTexto,
-                            textAlign = TextAlign.Center
-                        )
-
-                        Text(
-                            text = "Duração: ${jogo.duracao} minutos",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.DarkGray,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-
-                // Escalacoes mantendo o padrão de cor (Branco/Vermelho)
+                // Escaladas dos Times
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
+                    modifier = Modifier.fillMaxWidth().weight(1f),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    TeamEscalacaoCard(
-                        modifier = Modifier.weight(1f),
+                    EscalacaoHistoricoCard(
                         titulo = "TIME BRANCO",
                         jogadores = detalhes!!.timeBranco,
-                        containerColor = Color(0xFFE8E2FF) // Lavanda padrão
+                        containerColor = Color(0xFFE8E2FF),
+                        modifier = Modifier.weight(1f)
                     )
 
-                    TeamEscalacaoCard(
-                        modifier = Modifier.weight(1f),
+                    EscalacaoHistoricoCard(
                         titulo = "TIME VERMELHO",
                         jogadores = detalhes!!.timeVermelho,
-                        containerColor = Color(0xFFFFE1E1) // Vermelho claro padrão
+                        containerColor = Color(0xFFFFE1E1),
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
@@ -178,13 +102,56 @@ fun DetalhesJogoScreen(
 }
 
 @Composable
-private fun TeamEscalacaoCard(
-    modifier: Modifier = Modifier,
+private fun PainelResultadoDetalhes(
+    jogo: com.example.amigosdaquinta.data.local.entity.Jogo,
+    dateFormat: SimpleDateFormat,
+    timeFormat: SimpleDateFormat
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = Color(0xFFEBE8EC)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("${jogo.numeroJogo}° Jogo", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("${dateFormat.format(Date(jogo.data))} ${timeFormat.format(Date(jogo.data))}", style = MaterialTheme.typography.bodySmall, color = Color.DarkGray)
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                Text("BRANCO", style = MaterialTheme.typography.titleSmall, color = Color.Gray)
+                Text("  ${jogo.placarBranco} x ${jogo.placarVermelho}  ", style = MaterialTheme.typography.displayLarge, fontWeight = FontWeight.ExtraBold, fontSize = 56.sp, color = Color.Black)
+                Text("VERMELHO", style = MaterialTheme.typography.titleSmall, color = Color.Gray)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            val vencedorTexto = when (jogo.timeVencedor) {
+                TimeColor.BRANCO -> "Vitória do Time Branco"
+                TimeColor.VERMELHO -> "Vitória do Time Vermelho"
+                null -> "Empate"
+            }
+            
+            Text(vencedorTexto, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.Black)
+            Text("Duração: ${jogo.duracao} minutos", style = MaterialTheme.typography.bodyMedium, color = Color.DarkGray)
+        }
+    }
+}
+
+@Composable
+private fun EscalacaoHistoricoCard(
     titulo: String,
     jogadores: List<JogadorParticipacao>,
-    containerColor: Color
+    containerColor: Color,
+    modifier: Modifier = Modifier
 ) {
-    val jogadoresOrdenados = remember(jogadores) {
+    val ordenados = remember(jogadores) {
         jogadores.sortedWith(
             compareBy<JogadorParticipacao> { it.foiSubstituido }
                 .thenBy { !it.jogador.isPosicaoGoleiro }
@@ -193,71 +160,24 @@ private fun TeamEscalacaoCard(
         )
     }
 
-    Surface(
-        modifier = modifier.fillMaxHeight(),
-        shape = MaterialTheme.shapes.medium,
-        color = containerColor
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(12.dp)
-        ) {
-            Text(
-                text = "$titulo (${jogadores.size})",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
+    Surface(modifier = modifier.fillMaxHeight(), shape = MaterialTheme.shapes.medium, color = containerColor) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text("$titulo (${jogadores.size})", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                items(jogadoresOrdenados) { participacao ->
-                    val jogador = participacao.jogador
-                    val foiSubstituido = participacao.foiSubstituido
-                    val entrouComoSubstituto = participacao.entrouComoSubstituto
-                    
-                    // Revertendo para fundo preto e letras brancas para substituidos
-                    val surfaceColor = if (foiSubstituido) Color(0xFF424242) else Color.White
-                    val textColor = if (foiSubstituido) Color.White else Color.Black
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(ordenados) { part ->
+                    val s = part.foiSubstituido
+                    val e = part.entrouComoSubstituto
+                    val surfCol = if (s) Color(0xFF424242) else Color.White
+                    val textCol = if (s) Color.White else Color.Black
 
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.small,
-                        color = surfaceColor,
-                        shadowElevation = 0.5.dp
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 10.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            val prefixo = if (entrouComoSubstituto && !foiSubstituido) "(E) " else ""
-                            val sufixo = if (foiSubstituido) " (S)" else ""
-
-                            Text(
-                                text = (if (jogador.isPosicaoGoleiro) "[GOL] " else "") + prefixo + jogador.nome + sufixo,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = if (foiSubstituido) FontWeight.Normal else FontWeight.Medium,
-                                modifier = Modifier.weight(1f),
-                                color = textColor
-                            )
+                    Surface(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small, color = surfCol, shadowElevation = 0.5.dp) {
+                        Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            val txt = (if (part.jogador.isPosicaoGoleiro) "[GOL] " else "") + (if (e && !s) "(E) " else "") + part.jogador.nome + (if (s) " (S)" else "")
+                            Text(txt, style = MaterialTheme.typography.bodySmall, fontWeight = if (s) FontWeight.Normal else FontWeight.Medium, modifier = Modifier.weight(1f), color = textCol)
                             
-                            Surface(
-                                color = if (foiSubstituido) Color(0xFF616161) else Color(0xFFF0EDFF),
-                                shape = MaterialTheme.shapes.small
-                            ) {
-                                Text(
-                                    text = "#${jogador.numeroCamisa}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                    color = if (foiSubstituido) Color.White else Color(0xFF4B0082)
-                                )
+                            Surface(color = if (s) Color(0xFF616161) else Color(0xFFF0EDFF), shape = MaterialTheme.shapes.small) {
+                                Text("#${part.jogador.numeroCamisa}", modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = if (s) Color.White else Color(0xFF4B0082))
                             }
                         }
                     }

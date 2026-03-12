@@ -10,42 +10,49 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 /**
- * ViewModel responsável pelo gerenciamento de jogadores.
+ * ViewModel responsável pela gestão do cadastro e listagem geral de jogadores.
+ *
+ * Cuida das operações de inclusão, edição, busca e inativação de atletas,
+ * além de garantir a população inicial do banco de dados em novas instalações.
+ *
+ * @property jogadorRepository Repositório para operações de persistência de jogadores.
  */
 class JogadoresViewModel(
     private val jogadorRepository: JogadorRepository
 ) : ViewModel() {
 
     private val _jogadores = MutableStateFlow<List<Jogador>>(emptyList())
+    /** Lista de jogadores ativos exibida na interface. */
     val jogadores: StateFlow<List<Jogador>> = _jogadores.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
+    /** Estado que indica se há uma operação de carregamento em curso. */
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     init {
-        // Carrega os jogadores e verifica se precisa popular o banco silenciosamente
         carregarJogadores()
         verificarEPopularBanco()
     }
 
     /**
-     * Verifica se o banco está vazio e popula silenciosamente com os jogadores iniciais.
+     * Verifica se o banco de dados está vazio e realiza a carga inicial silenciosa.
      */
     private fun verificarEPopularBanco() {
         viewModelScope.launch {
             try {
-                // Tenta obter o primeiro valor da lista de ativos para checar se está vazio
                 val count = jogadorRepository.contarAtivos()
                 if (count == 0) {
-                    Log.d(TAG, "Banco vazio detectado no primeiro load. Populando silenciosamente...")
                     popularBancoComJogadoresIniciais()
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Erro na verificação inicial do banco", e)
+                Log.e(TAG, "Erro na verificação inicial: ${e.message}")
             }
         }
     }
 
+    /**
+     * Observa a lista de jogadores ativos do repositório.
+     */
     private fun carregarJogadores() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -56,10 +63,12 @@ class JogadoresViewModel(
         }
     }
 
+    /**
+     * Filtra a lista de jogadores ativos pelo nome.
+     */
     fun buscarPorNome(query: String) {
         viewModelScope.launch {
             if (query.isBlank()) {
-                // Se a busca for limpa, volta a observar todos os ativos
                 jogadorRepository.obterTodosAtivos().take(1).collect { _jogadores.value = it }
             } else {
                 jogadorRepository.buscarPorNome(query).collect { _jogadores.value = it }
@@ -68,21 +77,24 @@ class JogadoresViewModel(
     }
 
     /**
-     * Popula o banco com os jogadores iniciais sem necessidade de intervenção do usuário.
+     * Insere a lista pré-definida de jogadores iniciais no banco.
      */
-    fun popularBancoComJogadoresIniciais() {
+    private fun popularBancoComJogadoresIniciais() {
         viewModelScope.launch {
             try {
                 JogadoresIniciais.lista.forEach { jogador ->
                     jogadorRepository.inserir(jogador)
                 }
-                Log.d(TAG, "População silenciosa concluída: ${JogadoresIniciais.total} jogadores inseridos.")
+                Log.d(TAG, "População inicial concluída com sucesso.")
             } catch (e: Exception) {
-                Log.e(TAG, "Falha ao popular banco silenciosamente", e)
+                Log.e(TAG, "Falha na carga inicial: ${e.message}")
             }
         }
     }
 
+    /**
+     * Adiciona um novo jogador ao sistema.
+     */
     fun adicionarJogador(nome: String, numero: Int, isGoleiro: Boolean) {
         viewModelScope.launch {
             val novoJogador = Jogador(nome = nome.trim(), numeroCamisa = numero, isPosicaoGoleiro = isGoleiro)
@@ -90,6 +102,9 @@ class JogadoresViewModel(
         }
     }
 
+    /**
+     * Atualiza os dados de um jogador existente.
+     */
     fun editarJogador(id: Long, nome: String, numero: Int, isGoleiro: Boolean) {
         viewModelScope.launch {
             val jogador = jogadorRepository.obterPorId(id) ?: return@launch
@@ -97,6 +112,9 @@ class JogadoresViewModel(
         }
     }
 
+    /**
+     * Realiza a inativação lógica de um jogador.
+     */
     fun removerJogador(id: Long) {
         viewModelScope.launch {
             jogadorRepository.marcarComoInativo(id)

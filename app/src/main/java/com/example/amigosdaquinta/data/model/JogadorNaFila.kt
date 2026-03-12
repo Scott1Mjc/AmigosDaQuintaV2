@@ -4,13 +4,15 @@ import com.example.amigosdaquinta.data.local.entity.Jogador
 import com.example.amigosdaquinta.data.local.entity.PresencaDia
 
 /**
- * Representa um jogador posicionado na fila de espera durante a sessão.
+ * Representa o estado de um jogador posicionado na fila de espera.
+ * 
+ * Vincula o cadastro do atleta ao seu registro de presença atual, permitindo
+ * o controle de jogos consecutivos e disponibilidade para entrar em campo.
  *
- * [jogosConsecutivos] é incrementado a cada jogo que o jogador participa sem sair
- * e é usado pelo FormadorDeTimes para controle de rotação.
- *
- * [podeJogar] pode ser false quando o jogador está temporariamente indisponível
- * (ex: lesão durante a sessão) sem precisar ser removido da fila.
+ * @property jogador Dados cadastrais do atleta.
+ * @property presenca Registro de presença na sessão atual.
+ * @property jogosConsecutivos Contador de partidas disputadas em sequência.
+ * @property podeJogar Define se o jogador está apto a ser escalado (ex: não lesionado).
  */
 data class JogadorNaFila(
     val jogador: Jogador,

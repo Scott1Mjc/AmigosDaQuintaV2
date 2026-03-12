@@ -2,27 +2,21 @@ package com.example.amigosdaquinta.ui.screens.debug
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.amigosdaquinta.viewmodel.JogadoresViewModel
 import com.example.amigosdaquinta.viewmodel.SessaoViewModel
 
 /**
- * Tela de ferramentas de desenvolvimento e testes manuais.
- *
- * Permite popular o banco com jogadores fictícios, adicionar todos à lista de presença
- * e inspecionar o estado atual da sessão.
- *
- * Esta tela nao deve ser acessível em builds de producao.
- * O acesso esta vinculado ao botão de debug na HomeScreen (long press no título).
- *
- * Thresholds exibidos no painel de estado:
- * - 22+: sessao pronta para iniciar jogos.
- * - 30+: regra de rotacao forcada ativa.
- * - 33+: modo rotacao total ativo.
+ * Painel de Ferramentas de Desenvolvimento.
+ * 
+ * Centraliza funcionalidades de teste, como a população em massa da lista de presença
+ * e o reset completo do estado da sessão.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,80 +31,77 @@ fun DebugScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Debug / Testes") },
+                title = { Text("Painel de Debug", color = Color.Black) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Voltar")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", tint = Color.Black)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
-        }
+        },
+        containerColor = Color(0xFFF8F9FA)
     ) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(text = "Ferramentas de Teste", style = MaterialTheme.typography.titleLarge)
+            Text("Utilidades de Teste", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
 
-            Divider()
+            // Card: Gerenciamento de Presença em Lote
+            DebugActionCard(
+                titulo = "Lista de Presença",
+                descricao = "Adiciona todos os atletas cadastrados à fila de uma só vez.",
+                buttonText = "CONFIRMAR TODOS",
+                onAction = { jogadores.forEach { sessaoViewModel.adicionarAListaPresenca(it) } }
+            )
 
-            Card(modifier = Modifier.fillMaxWidth()) {
+            // Card: Monitoramento de Estado
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+                color = Color.White,
+                shadowElevation = 1.dp
+            ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(text = "Lista de Presenca", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        text = "Adiciona todos os jogadores cadastrados a lista automaticamente",
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                    Text("Métricas da Sessão", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Button(
-                        onClick = {
-                            jogadores.forEach { sessaoViewModel.adicionarAListaPresenca(it) }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Adicionar Todos a Lista")
-                    }
+                    Text("• Atletas Cadastrados: ${jogadores.size}", style = MaterialTheme.typography.bodyMedium)
+                    Text("• Atletas na Fila: ${listaPresenca.size}", style = MaterialTheme.typography.bodyMedium)
                 }
             }
 
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(text = "Estado Atual", style = MaterialTheme.typography.titleMedium)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Jogadores cadastrados: ${jogadores.size}")
-                    Text("Jogadores na lista: ${listaPresenca.size}")
+            // Card: Reset de Fábrica
+            DebugActionCard(
+                titulo = "Reset de Dados",
+                descricao = "Limpa permanentemente a fila de presença e o jogo atual.",
+                buttonText = "LIMPAR SESSÃO",
+                buttonColor = Color.Red.copy(alpha = 0.8f),
+                onAction = { sessaoViewModel.iniciarNovoDia() }
+            )
+        }
+    }
+}
 
-                    val (textoStatus, corStatus) = when {
-                        listaPresenca.size >= 33 -> "ROTACAO TOTAL ATIVA (33+)" to MaterialTheme.colorScheme.primary
-                        listaPresenca.size >= 30 -> "ROTACAO FORCADA ATIVA (30+)" to MaterialTheme.colorScheme.primary
-                        listaPresenca.size >= 22 -> "Pronto para jogar (22+)" to MaterialTheme.colorScheme.primary
-                        else -> null to null
-                    }
-
-                    if (textoStatus != null && corStatus != null) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(text = textoStatus, color = corStatus)
-                    }
-                }
-            }
-
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(text = "Limpar Dados", style = MaterialTheme.typography.titleMedium)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(
-                        onClick = { sessaoViewModel.limparSessaoCompleta() },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error
-                        )
-                    ) {
-                        Text("Limpar Lista de Presenca")
-                    }
-                }
+@Composable
+private fun DebugActionCard(titulo: String, descricao: String, buttonText: String, buttonColor: Color = Color(0xFF4B0082), onAction: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = Color.White,
+        shadowElevation = 1.dp
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(titulo, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(descricao, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+            Spacer(modifier = Modifier.height(12.dp))
+            Button(
+                onClick = onAction,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = buttonColor),
+                shape = MaterialTheme.shapes.small
+            ) {
+                Text(buttonText, fontWeight = FontWeight.Bold)
             }
         }
     }

@@ -8,31 +8,36 @@ import kotlinx.coroutines.withContext
 import java.util.Calendar
 
 /**
- * Repository responsável pelo registro e consulta de presenças diárias dos jogadores.
+ * Repositório responsável pela gestão das presenças diárias dos jogadores.
  *
- * Cada presença representa a chegada de um jogador em um dia de pelada,
- * com controle de ordem de chegada, status ativo/inativo e contagem de jogos participados.
+ * Controla a fila de chegada, a contagem de partidas disputadas por cada atleta no dia
+ * e a persistência do histórico de presença por sessão.
  *
- * A ordem de chegada é calculada automaticamente com base no último registro do mesmo dia,
- * garantindo sequência incremental mesmo com inserções concorrentes.
+ * @property presencaDao Objeto de acesso a dados (DAO) da entidade PresencaDia.
  */
 class PresencaRepository(private val presencaDao: PresencaDao) {
 
-    // region Fluxos reativos
-
+    /**
+     * Retorna a lista de jogadores ativos na sessão de um dia específico.
+     */
     fun obterPresencasDoDia(dataInicio: Long, dataFim: Long): Flow<List<PresencaDia>> =
         presencaDao.obterPresencasDoDia(dataInicio, dataFim)
 
+    /**
+     * Retorna todos os registros de presença (ativos e inativos) de um dia.
+     */
     fun obterTodasPresencasDoDia(dataInicio: Long, dataFim: Long): Flow<List<PresencaDia>> =
         presencaDao.obterTodasPresencasDoDia(dataInicio, dataFim)
 
-    // endregion
-
-    // region Consultas suspend
-
+    /**
+     * Busca um registro de presença específico pelo ID.
+     */
     suspend fun obterPorId(id: Long): PresencaDia? =
         presencaDao.obterPorId(id)
 
+    /**
+     * Busca a presença de um jogador em uma data específica.
+     */
     suspend fun obterPresencaPorJogadorEDia(
         jogadorId: Long,
         dataInicio: Long,
@@ -40,20 +45,19 @@ class PresencaRepository(private val presencaDao: PresencaDao) {
     ): PresencaDia? =
         presencaDao.obterPresencaPorJogadorEDia(jogadorId, dataInicio, dataFim)
 
+    /**
+     * Retorna a quantidade de jogadores que ainda estão ativos na sessão atual.
+     */
     suspend fun contarPresencasAtivas(dataInicio: Long, dataFim: Long): Int =
         presencaDao.contarPresencasAtivas(dataInicio, dataFim)
 
-    // endregion
-
-    // region Escrita
-
     /**
-     * Registra a presença de um jogador no dia correspondente ao [horarioChegada].
+     * Registra a chegada de um jogador na sessão.
+     * Calcula automaticamente a ordem de chegada com base nos registros do dia.
      *
-     * A ordem de chegada é definida automaticamente como (última ordem do dia + 1).
-     * Se nenhum registro existir no dia, a ordem começa em 1.
-     *
-     * @return ID do registro de presença inserido.
+     * @param jogadorId ID do jogador que está chegando.
+     * @param horarioChegada Timestamp do momento da chegada.
+     * @return ID do novo registro de presença.
      */
     suspend fun registrarPresenca(jogadorId: Long, horarioChegada: Long): Long {
         val (inicio, fim) = obterInicioEFimDoDia(horarioChegada)
@@ -70,8 +74,8 @@ class PresencaRepository(private val presencaDao: PresencaDao) {
     }
 
     /**
-     * Remove todos os registros de presença do banco.
-     * Usado ao resetar sessão para novo dia.
+     * Remove todos os registros de presença de todas as datas.
+     * Operação administrativa drástica.
      */
     suspend fun limparTodasPresencas() {
         withContext(Dispatchers.IO) {
@@ -79,26 +83,32 @@ class PresencaRepository(private val presencaDao: PresencaDao) {
         }
     }
 
-
+    /**
+     * Marca a saída de um jogador da sessão atual (inativação lógica).
+     */
     suspend fun marcarComoInativo(presencaId: Long) =
         presencaDao.marcarComoInativo(presencaId)
 
+    /**
+     * Incrementa o contador de jogos que o atleta participou no dia.
+     */
     suspend fun incrementarJogosParticipados(presencaId: Long) =
         presencaDao.incrementarJogosParticipados(presencaId)
 
+    /**
+     * Zera o contador de jogos participados de um jogador.
+     */
     suspend fun resetarJogosConsecutivos(presencaId: Long) =
         presencaDao.resetarJogosConsecutivos(presencaId)
 
+    /**
+     * Remove todos os registros de presença de um dia específico.
+     */
     suspend fun limparPresencasDoDia(dataInicio: Long, dataFim: Long) =
         presencaDao.limparPresencasDoDia(dataInicio, dataFim)
 
-    // endregion
-
-    // region Utilitários privados
-
     /**
-     * Calcula o início (00:00:00.000) e fim (23:59:59.999) do dia
-     * a partir de um timestamp arbitrário, respeitando o timezone local.
+     * Utilitário para calcular os limites temporais (00:00:00 a 23:59:59) de um timestamp.
      */
     private fun obterInicioEFimDoDia(timestamp: Long): Pair<Long, Long> {
         val calendar = Calendar.getInstance().apply {
@@ -120,6 +130,4 @@ class PresencaRepository(private val presencaDao: PresencaDao) {
 
         return Pair(inicio, fim)
     }
-
-    // endregion
 }

@@ -11,24 +11,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.amigosdaquinta.data.local.entity.Jogador
 
 /**
- * Card de formação manual de um time durante a montagem de partida.
+ * Card para formação manual de times.
+ * 
+ * Exibe a contagem de atletas, validações de formação (mínimo de 1 goleiro)
+ * e a lista de jogadores escalados com opção de remoção.
  *
- * Exibe contador de jogadores, alertas de validação (sem goleiro, time completo)
- * e lista scrollável com opção de remoção individual.
- *
- * O botão de adicionar é ocultado automaticamente quando [completo] é true.
- *
- * @param titulo Nome do time exibido no header (ex: "TIME BRANCO").
- * @param cor Cor de fundo do card — deve refletir a cor do time.
- * @param jogadores Jogadores atualmente no time.
- * @param completo True quando o time atingiu 11 jogadores.
- * @param temGoleiro True quando ao menos um jogador da lista é goleiro.
- * @param onAdicionar Chamado ao tocar no botão de adicionar jogador.
- * @param onRemover Chamado ao tocar no ícone de remoção de um jogador específico.
+ * @param titulo Nome do time (ex: "TIME BRANCO").
+ * @param cor Cor de fundo temática do time.
+ * @param jogadores Lista de atletas escalados.
+ * @param completo Indica se o time atingiu o limite de 11 jogadores.
+ * @param temGoleiro Indica se há ao menos um goleiro escalado.
+ * @param onAdicionar Callback para inclusão de novo atleta.
+ * @param onRemover Callback para remoção de um atleta específico.
  */
 @Composable
 fun TimeFormadoCard(
@@ -43,7 +42,8 @@ fun TimeFormadoCard(
 ) {
     Card(
         modifier = modifier.fillMaxHeight(),
-        colors = CardDefaults.cardColors(containerColor = cor)
+        colors = CardDefaults.cardColors(containerColor = cor),
+        shape = MaterialTheme.shapes.medium
     ) {
         Column(
             modifier = Modifier
@@ -55,37 +55,24 @@ fun TimeFormadoCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = titulo, style = MaterialTheme.typography.titleMedium)
-                Text(text = "${jogadores.size}/11", style = MaterialTheme.typography.titleLarge)
+                Text(text = titulo, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(text = "${jogadores.size}/11", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // Alertas de Validação
             if (jogadores.isNotEmpty() && !temGoleiro) {
                 Surface(
-                    color = MaterialTheme.colorScheme.errorContainer,
+                    color = Color.White.copy(alpha = 0.9f),
                     shape = MaterialTheme.shapes.small
                 ) {
                     Text(
-                        text = "Precisa de 1 goleiro",
-                        modifier = Modifier.padding(8.dp),
+                        text = "⚠️ Necessário 1 goleiro",
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            if (completo && temGoleiro) {
-                Surface(
-                    color = Color.Transparent,
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Text(
-                        text = "Time completo",
-                        modifier = Modifier.padding(8.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
+                        color = Color.Red,
+                        fontWeight = FontWeight.Bold
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
@@ -94,15 +81,13 @@ fun TimeFormadoCard(
             if (!completo) {
                 Button(
                     onClick = onAdicionar,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Adicionar Jogador")
+                    Text("Adicionar Jogador", style = MaterialTheme.typography.labelLarge)
                 }
                 Spacer(modifier = Modifier.height(12.dp))
             }
@@ -110,11 +95,14 @@ fun TimeFormadoCard(
             if (jogadores.isEmpty()) {
                 EmptyTimeState()
             } else {
-                JogadoresList(
+                LazyColumn(
                     modifier = Modifier.weight(1f),
-                    jogadores = jogadores,
-                    onRemover = onRemover
-                )
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(items = jogadores, key = { it.id }) { jogador ->
+                        JogadorNoTimeItem(jogador = jogador, onRemover = { onRemover(jogador) })
+                    }
+                }
             }
         }
     }
@@ -122,67 +110,39 @@ fun TimeFormadoCard(
 
 @Composable
 private fun EmptyTimeState() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(text = "Nenhum jogador", style = MaterialTheme.typography.bodyMedium)
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(text = "Escalação vazia", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
     }
 }
 
 @Composable
-private fun JogadoresList(
-    modifier: Modifier = Modifier,
-    jogadores: List<Jogador>,
-    onRemover: (Jogador) -> Unit
-) {
-    LazyColumn(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        items(items = jogadores, key = { it.id }) { jogador ->
-            JogadorNoTimeItem(jogador = jogador, onRemover = { onRemover(jogador) })
-        }
-    }
-}
-
-@Composable
-private fun JogadorNoTimeItem(
-    jogador: Jogador,
-    onRemover: () -> Unit
-) {
+private fun JogadorNoTimeItem(jogador: Jogador, onRemover: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 2.dp
+        shape = MaterialTheme.shapes.small,
+        color = Color.White,
+        shadowElevation = 1.dp
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = if (jogador.isPosicaoGoleiro) "[GOL] ${jogador.nome}" else jogador.nome,
-                    style = MaterialTheme.typography.bodyLarge
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
                 )
                 Text(
-                    text = "Camisa ${jogador.numeroCamisa}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = "#${jogador.numeroCamisa}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.Gray
                 )
             }
 
-            IconButton(onClick = onRemover, modifier = Modifier.size(40.dp)) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Remover ${jogador.nome}",
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(24.dp)
-                )
+            IconButton(onClick = onRemover, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.Delete, null, tint = Color.Red.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
             }
         }
     }

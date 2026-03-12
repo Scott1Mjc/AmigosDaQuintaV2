@@ -4,16 +4,15 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 /**
- * Entidade que representa a presenca de um jogador em um dia de sessao.
+ * Representa o registro histórico de presença de um jogador em uma data específica.
  *
- * [ordemChegada] e calculado pelo [PresencaRepository] no momento do registro,
- * garantindo sequencia incremental por dia.
- *
- * [jogosParticipados] e incrementado pelo [PresencaRepository] a cada jogo
- * que o jogador entra em campo, e zerado pelo FormadorDeTimes apos rotacao.
- *
- * [ativo] permite inativacao logica quando o jogador vai embora durante a sessao,
- * sem remover o registro do historico do dia.
+ * @property id Identificador único do registro.
+ * @property jogadorId ID do jogador.
+ * @property data Data da sessão (timestamp).
+ * @property horarioChegada Horário exato da entrada na fila (timestamp).
+ * @property ordemChegada Posição numérica de chegada no dia.
+ * @property jogosParticipados Contador de partidas disputadas pelo jogador no dia.
+ * @property ativo Define se o jogador ainda está presente na sessão.
  */
 @Entity(tableName = "lista_presenca")
 data class PresencaDia(

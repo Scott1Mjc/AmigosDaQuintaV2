@@ -12,24 +12,21 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.amigosdaquinta.data.local.entity.Jogador
 import com.example.amigosdaquinta.viewmodel.JogadoresViewModel
 import com.example.amigosdaquinta.ui.screens.home.AdicionarJogadorDialog
 
 /**
- * Tela de gerenciamento completo de jogadores (CRUD).
+ * Tela para gestão do elenco (CRUD de Jogadores).
+ * 
+ * Permite listar, adicionar, editar e inativar atletas. 
+ * Segue o padrão visual de cores Lavanda/Cinza do sistema.
  *
- * Funcionalidades:
- * - Listar todos os jogadores cadastrados
- * - Adicionar novo jogador (números de camisa: 0 a 999)
- * - Editar jogador existente
- * - Remover jogador (exclusão permanente com confirmação)
- *
- * Validações:
- * - Nome não pode ser vazio
- * - Número da camisa deve estar entre 0 e 999
- * - Suporte a números especiais (777, 110, etc.)
+ * @param viewModel ViewModel que gerencia a lógica de dados dos jogadores.
+ * @param onNavigateBack Callback para retornar à tela anterior.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,7 +41,6 @@ fun GerenciarJogadoresScreen(
     var jogadorParaEditar by remember { mutableStateOf<Jogador?>(null) }
     var jogadorParaRemover by remember { mutableStateOf<Jogador?>(null) }
 
-    // Ordenar jogadores por número de camisa
     val jogadoresOrdenados by remember(jogadores) {
         derivedStateOf { jogadores.sortedBy { it.numeroCamisa } }
     }
@@ -52,105 +48,55 @@ fun GerenciarJogadoresScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Gerenciar Jogadores") },
+                title = { Text("Gerenciar Jogadores", color = Color.Black) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", tint = Color.Black)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAdicionarDialog = true }) {
+            FloatingActionButton(
+                onClick = { showAdicionarDialog = true },
+                containerColor = Color(0xFF4B0082),
+                contentColor = Color.White
+            ) {
                 Icon(Icons.Default.Add, "Adicionar Jogador")
             }
-        }
+        },
+        containerColor = Color(0xFFF8F9FA)
     ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            when {
-                isLoading -> {
-                    CircularProgressIndicator(
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                }
-
-                jogadores.isEmpty() -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            "Nenhum jogador cadastrado",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            "Clique no botão + para adicionar",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            if (isLoading) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = Color(0xFF4B0082))
+            } else if (jogadores.isEmpty()) {
+                EmptyJogadoresState()
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(top = 16.dp, bottom = 80.dp)
+                ) {
+                    item {
+                        TotalJogadoresCard(total = jogadores.size)
                     }
-                }
 
-                else -> {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        item {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(bottom = 8.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                                )
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp)
-                                ) {
-                                    Text(
-                                        "Total: ${jogadores.size} jogadores",
-                                        style = MaterialTheme.typography.titleMedium
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        "Números de camisa suportados: 0 a 999",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-
-                        items(
-                            items = jogadoresOrdenados,
-                            key = { it.id }
-                        ) { jogador ->
-                            JogadorCardComAcoes(
-                                jogador = jogador,
-                                onEditar = { jogadorParaEditar = jogador },
-                                onRemover = { jogadorParaRemover = jogador }
-                            )
-                        }
+                    items(items = jogadoresOrdenados, key = { it.id }) { jogador ->
+                        JogadorGerenciarItem(
+                            jogador = jogador,
+                            onEditar = { jogadorParaEditar = jogador },
+                            onRemover = { jogadorParaRemover = jogador }
+                        )
                     }
                 }
             }
         }
     }
 
-    // Dialog: Adicionar jogador
+    // region Dialogs de Gestão
+
     if (showAdicionarDialog) {
         AdicionarJogadorDialog(
             onDismiss = { showAdicionarDialog = false },
@@ -161,182 +107,98 @@ fun GerenciarJogadoresScreen(
         )
     }
 
-    // Dialog: Editar jogador
     jogadorParaEditar?.let { jogador ->
         EditarJogadorDialog(
             jogador = jogador,
             onDismiss = { jogadorParaEditar = null },
-            onConfirm = { jogadorAtualizado ->
-                viewModel.editarJogador(
-                    jogadorAtualizado.id,
-                    jogadorAtualizado.nome,
-                    jogadorAtualizado.numeroCamisa,
-                    jogadorAtualizado.isPosicaoGoleiro
-                )
+            onConfirm = { atualizado ->
+                viewModel.editarJogador(atualizado.id, atualizado.nome, atualizado.numeroCamisa, atualizado.isPosicaoGoleiro)
                 jogadorParaEditar = null
             }
         )
     }
 
-    // Dialog: Confirmar remoção
     jogadorParaRemover?.let { jogador ->
-        AlertDialog(
-            onDismissRequest = { jogadorParaRemover = null },
-            icon = {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error
-                )
-            },
-            title = { Text("Remover Jogador") },
-            text = {
-                Column {
-                    Text("Tem certeza que deseja remover este jogador?")
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp)
-                        ) {
-                            Text(
-                                jogador.nome,
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Text(
-                                "Camisa #${jogador.numeroCamisa}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                if (jogador.isPosicaoGoleiro) "Goleiro" else "Jogador de Linha",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "Esta ação não pode ser desfeita.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.removerJogador(jogador.id)
-                        jogadorParaRemover = null
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error
-                    )
-                ) {
-                    Text("Remover")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { jogadorParaRemover = null }) {
-                    Text("Cancelar")
-                }
+        ConfirmarRemocaoDialog(
+            jogador = jogador,
+            onDismiss = { jogadorParaRemover = null },
+            onConfirm = {
+                viewModel.removerJogador(jogador.id)
+                jogadorParaRemover = null
             }
         )
     }
+
+    // endregion
 }
 
-/**
- * Card de jogador com botões de ação (editar/remover).
- *
- * Exibe:
- * - Nome do jogador
- * - Número da camisa (suporta 0-999)
- * - Posição (Goleiro ou Linha)
- * - Botões de editar e remover
- *
- * @param jogador Dados do jogador
- * @param onEditar Callback ao clicar em editar
- * @param onRemover Callback ao clicar em remover
- */
 @Composable
-private fun JogadorCardComAcoes(
-    jogador: Jogador,
-    onEditar: () -> Unit,
-    onRemover: () -> Unit
-) {
-    Card(
+private fun TotalJogadoresCard(total: Int) {
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        shape = MaterialTheme.shapes.medium,
+        color = Color(0xFFEBE8EC)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Elenco Cadastrado", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("Total de $total atletas ativos", style = MaterialTheme.typography.bodySmall, color = Color.DarkGray)
+        }
+    }
+}
+
+@Composable
+private fun JogadorGerenciarItem(jogador: Jogador, onEditar: () -> Unit, onRemover: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = Color.White,
+        shadowElevation = 1.dp
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Informações do jogador
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = jogador.nome,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    // Badge do número da camisa
-                    Surface(
-                        shape = MaterialTheme.shapes.small,
-                        color = MaterialTheme.colorScheme.primaryContainer
-                    ) {
-                        Text(
-                            text = "#${jogador.numeroCamisa}",
-                            style = MaterialTheme.typography.labelLarge,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-
-                    // Badge da posição
-                    Surface(
-                        shape = MaterialTheme.shapes.small,
-                        color = if (jogador.isPosicaoGoleiro) {
-                            MaterialTheme.colorScheme.tertiaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.secondaryContainer
-                        }
-                    ) {
-                        Text(
-                            text = if (jogador.isPosicaoGoleiro) "GOL" else "LINHA",
-                            style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
+                Text(jogador.nome, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(if (jogador.isPosicaoGoleiro) "Goleiro" else "Jogador de Linha", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
             }
-
-            // Botões de ação
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                IconButton(onClick = onEditar) {
-                    Icon(
-                        Icons.Default.Edit,
-                        contentDescription = "Editar jogador",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
+            
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Surface(shape = MaterialTheme.shapes.small, color = Color(0xFFF0EDFF)) {
+                    Text("#${jogador.numeroCamisa}", modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelLarge, color = Color(0xFF4B0082), fontWeight = FontWeight.Bold)
                 }
-                IconButton(onClick = onRemover) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "Remover jogador",
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                }
+                
+                IconButton(onClick = onEditar) { Icon(Icons.Default.Edit, "Editar", tint = Color.Gray) }
+                IconButton(onClick = onRemover) { Icon(Icons.Default.Delete, "Remover", tint = Color.Red.copy(alpha = 0.7f)) }
             }
         }
     }
+}
+
+@Composable
+private fun EmptyJogadoresState() {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("Nenhum jogador cadastrado", style = MaterialTheme.typography.titleMedium)
+        Text("Adicione atletas para começar a sessão", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+    }
+}
+
+@Composable
+private fun ConfirmarRemocaoDialog(jogador: Jogador, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Remover Jogador") },
+        text = { Text("Deseja realmente remover ${jogador.nome}? Ele não aparecerá mais nas listas de presença.") },
+        confirmButton = {
+            Button(onClick = onConfirm, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Remover") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        }
+    )
 }

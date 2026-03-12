@@ -7,76 +7,96 @@ import com.example.amigosdaquinta.data.local.entity.TimeColor
 import kotlinx.coroutines.flow.Flow
 
 /**
- * DAO de acesso aos dados de jogos.
+ * Interface de acesso a dados para a entidade Jogo.
  *
- * Operações de placar são feitas por campos individuais ([atualizarPlacarBranco],
- * [atualizarPlacarVermelho]) para evitar race conditions ao atualizar o objeto inteiro via [atualizar].
- *
- * [finalizarJogo] é a única operação que altera [timeVencedor] e [status] atomicamente,
- * garantindo consistência no encerramento de partidas.
+ * Gerencia a persistência das partidas, permitindo atualizações parciais de placar
+ * para evitar conflitos de concorrência e garantindo a integridade do status do jogo.
  */
 @Dao
 interface JogoDao {
 
-    // region Consultas reativas (Flow)
-
-    /** Retorna os jogos de um intervalo de datas, ordenados do mais recente para o mais antigo. */
+    /**
+     * Retorna um fluxo reativo de jogos realizados em um intervalo de tempo.
+     * Ordenado cronologicamente de forma decrescente.
+     */
     @Query("SELECT * FROM jogos WHERE data BETWEEN :dataInicio AND :dataFim ORDER BY data DESC, numeroJogo DESC")
     fun obterJogosDoDia(dataInicio: Long, dataFim: Long): Flow<List<Jogo>>
 
-    /** Retorna todos os jogos de todas as sessões, do mais recente para o mais antigo. */
+    /**
+     * Retorna um fluxo reativo de todos os jogos registrados.
+     */
     @Query("SELECT * FROM jogos ORDER BY data DESC, numeroJogo DESC")
     fun obterTodos(): Flow<List<Jogo>>
 
-    // endregion
-
-    // region Consultas suspend
-
+    /**
+     * Busca uma partida específica pelo seu ID.
+     */
     @Query("SELECT * FROM jogos WHERE id = :id")
     suspend fun obterPorId(id: Long): Jogo?
 
+    /**
+     * Busca uma lista de partidas pelos seus IDs.
+     */
     @Query("SELECT * FROM jogos WHERE id IN (:ids)")
     suspend fun obterPorIds(ids: List<Long>): List<Jogo>
 
-    /** Retorna o jogo mais recente com o status informado. Útil para localizar jogo em andamento. */
+    /**
+     * Retorna a partida mais recente com o status informado (ex: EM_ANDAMENTO).
+     */
     @Query("SELECT * FROM jogos WHERE status = :status ORDER BY data DESC LIMIT 1")
     suspend fun obterJogoPorStatus(status: StatusJogo): Jogo?
 
-    /** Retorna o último jogo registrado no dia (maior [numeroJogo]). */
+    /**
+     * Retorna a última partida registrada em um intervalo de tempo.
+     */
     @Query("SELECT * FROM jogos WHERE data >= :dataInicio AND data <= :dataFim ORDER BY numeroJogo DESC LIMIT 1")
     suspend fun obterUltimoJogoDoDia(dataInicio: Long, dataFim: Long): Jogo?
 
+    /**
+     * Conta o total de partidas realizadas no intervalo de tempo.
+     */
     @Query("SELECT COUNT(*) FROM jogos WHERE data >= :dataInicio AND data <= :dataFim")
     suspend fun contarJogosDoDia(dataInicio: Long, dataFim: Long): Int
 
-    // endregion
-
-    // region Escrita
-
+    /**
+     * Insere uma nova partida no banco de dados.
+     */
     @Insert
     suspend fun inserir(jogo: Jogo): Long
 
+    /**
+     * Atualiza os dados de uma partida existente.
+     */
     @Update
     suspend fun atualizar(jogo: Jogo)
 
+    /**
+     * Remove uma partida do banco de dados.
+     */
     @Delete
     suspend fun deletar(jogo: Jogo)
 
+    /**
+     * Atualiza apenas o status de uma partida.
+     */
     @Query("UPDATE jogos SET status = :status WHERE id = :id")
     suspend fun atualizarStatus(id: Long, status: StatusJogo)
 
+    /**
+     * Atualiza o placar do Time Branco.
+     */
     @Query("UPDATE jogos SET placarBranco = :placar WHERE id = :id")
     suspend fun atualizarPlacarBranco(id: Long, placar: Int)
 
+    /**
+     * Atualiza o placar do Time Vermelho.
+     */
     @Query("UPDATE jogos SET placarVermelho = :placar WHERE id = :id")
     suspend fun atualizarPlacarVermelho(id: Long, placar: Int)
 
     /**
-     * Encerra o jogo: define o [vencedor] e altera o [status] para FINALIZADO atomicamente.
-     * Passar null em [vencedor] representa empate.
+     * Finaliza a partida definindo o vencedor e alterando o status para FINALIZADO de forma atômica.
      */
     @Query("UPDATE jogos SET timeVencedor = :vencedor, status = :status WHERE id = :id")
     suspend fun finalizarJogo(id: Long, vencedor: TimeColor?, status: StatusJogo)
-
-    // endregion
 }

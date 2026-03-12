@@ -1,4 +1,4 @@
-package com.example.amigosdaquinta.ui.screens.presenca
+package com.example.amigosdaquinta.ui.presenca
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -7,18 +7,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.amigosdaquinta.data.local.entity.Jogador
 
 /**
- * Item da lista de presenca do dia.
- *
- * Exibe a ordem de chegada do jogador (badge numerado), nome, numero de camisa,
- * horario de chegada e botao de remocao.
- *
- * @param ordem Posicao na fila (1-based), exibida como badge.
- * @param horario Horario de chegada ja formatado (ex: "14:32").
- * @param onRemove Chamado ao tocar no icone de remocao.
+ * Item visual para a lista de presença.
+ * 
+ * Exibe a ordem de chegada, nome, número da camisa e horário de registro.
  */
 @Composable
 fun PresencaItem(
@@ -27,9 +24,14 @@ fun PresencaItem(
     horario: String,
     onRemove: () -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = Color.White,
+        shadowElevation = 1.dp
+    ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier.padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -37,25 +39,30 @@ fun PresencaItem(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // Badge de Ordem de Chegada
                 Surface(
                     shape = MaterialTheme.shapes.small,
-                    color = MaterialTheme.colorScheme.primaryContainer
+                    color = Color(0xFFF0EDFF)
                 ) {
                     Text(
-                        text = "$ordem",
+                        text = "${ordem}º",
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        style = MaterialTheme.typography.titleMedium
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color(0xFF4B0082),
+                        fontWeight = FontWeight.Bold
                     )
                 }
 
                 Column {
                     Text(
                         text = jogador.nome,
-                        style = MaterialTheme.typography.titleMedium
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "#${jogador.numeroCamisa} • $horario",
-                        style = MaterialTheme.typography.bodySmall
+                        text = "#${jogador.numeroCamisa} • Chegada às $horario",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
                     )
                 }
             }
@@ -63,8 +70,8 @@ fun PresencaItem(
             IconButton(onClick = onRemove) {
                 Icon(
                     imageVector = Icons.Default.Delete,
-                    contentDescription = "Remover ${jogador.nome}",
-                    tint = MaterialTheme.colorScheme.error
+                    contentDescription = "Remover",
+                    tint = Color.Red.copy(alpha = 0.6f)
                 )
             }
         }

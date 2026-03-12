@@ -4,12 +4,16 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 /**
- * Entidade que representa uma partida registrada no app.
+ * Representa uma partida de futebol realizada durante uma sessão.
  *
- * [numeroJogo] e a sequencia da partida dentro da sessao do dia (1, 2, 3...).
- * [status] segue o ciclo: AGUARDANDO -> EM_ANDAMENTO -> FINALIZADO (ou CANCELADO).
- * [timeVencedor] e null em caso de empate ou enquanto o jogo nao foi finalizado.
- * [duracao] e definido pela regra da sessao: 30 min para o 1o jogo, 15 min para os demais.
+ * @property id Identificador único da partida.
+ * @property data Timestamp da data e hora em que a partida foi iniciada.
+ * @property numeroJogo Sequência da partida dentro da sessão do dia (ex: 1º jogo, 2º jogo).
+ * @property duracao Tempo total da partida em minutos.
+ * @property status Estado atual da partida (AGUARDANDO, EM_ANDAMENTO, FINALIZADO, CANCELADO).
+ * @property timeVencedor Cor do time vencedor ou nulo em caso de empate.
+ * @property placarBranco Gols marcados pelo time Branco.
+ * @property placarVermelho Gols marcados pelo time Vermelho.
  */
 @Entity(tableName = "jogos")
 data class Jogo(

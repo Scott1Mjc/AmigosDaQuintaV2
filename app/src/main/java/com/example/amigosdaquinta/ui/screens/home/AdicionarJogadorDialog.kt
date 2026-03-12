@@ -5,23 +5,20 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
 /**
- * Dialog de cadastro de novo jogador.
+ * Diálogo para cadastro de um novo atleta no sistema.
  *
- * Validacoes ativas:
- * - Nome nao pode ser vazio.
- * - Numero de camisa deve ser um inteiro entre 1 e 99.
+ * Realiza validações de campo para garantir que o nome não esteja vazio e o número
+ * da camisa esteja no intervalo permitido (0-999).
  *
- * O campo de numero aceita apenas digitos e limita a entrada a 2 caracteres via [onValueChange].
- * O botao de confirmar permanece desabilitado ate que nome e numero sejam validos.
- *
- * Dialog para adicionar um novo jogador.
- * @param onConfirm Retorna (nome, numeroCamisa, isGoleiro) apos validacao
+ * @param onDismiss Callback para fechar o diálogo sem salvar.
+ * @param onConfirm Callback que retorna os dados validados (nome, número, éGoleiro).
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdicionarJogadorDialog(
     onDismiss: () -> Unit,
@@ -35,52 +32,44 @@ fun AdicionarJogadorDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Adicionar Jogador") },
+        title = { Text("Novo Atleta", fontWeight = FontWeight.Bold) },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Campo: Nome
                 OutlinedTextField(
                     value = nome,
                     onValueChange = {
                         nome = it
                         erroNome = it.isBlank()
                     },
-                    label = { Text("Nome") },
+                    label = { Text("Nome Completo") },
                     modifier = Modifier.fillMaxWidth(),
                     isError = erroNome,
-                    supportingText = if (erroNome) {
-                        { Text("Nome não pode ser vazio") }
-                    } else null,
-                    singleLine = true
+                    singleLine = true,
+                    shape = MaterialTheme.shapes.medium
                 )
 
-                // Campo: Número da camisa
                 OutlinedTextField(
                     value = numero,
-                    onValueChange = {
-                        numero = it.filter { char -> char.isDigit() }
-                        val num = numero.toIntOrNull()
-                        erroNumero = num == null || num < 0 || num > 999
+                    onValueChange = { input ->
+                        val filtered = input.filter { it.isDigit() }.take(3)
+                        numero = filtered
+                        val num = filtered.toIntOrNull()
+                        erroNumero = num == null || num !in 0..999
                     },
-                    label = { Text("Número da Camisa") },
+                    label = { Text("Nº da Camisa") },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     isError = erroNumero,
-                    supportingText = if (erroNumero) {
-                        { Text("Número deve estar entre 0 e 999") }
-                    } else null,
-                    singleLine = true
+                    placeholder = { Text("0-999") },
+                    singleLine = true,
+                    shape = MaterialTheme.shapes.medium
                 )
 
-                // Campo: Posição
                 Column {
-                    Text(
-                        "Posição",
-                        style = MaterialTheme.typography.labelMedium
-                    )
+                    Text("Posição", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -95,7 +84,7 @@ fun AdicionarJogadorDialog(
                         FilterChip(
                             selected = !isGoleiro,
                             onClick = { isGoleiro = false },
-                            label = { Text("Linha") },
+                            label = { Text("Jogador de Linha") },
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -106,18 +95,19 @@ fun AdicionarJogadorDialog(
             Button(
                 onClick = {
                     val num = numero.toIntOrNull()
-                    if (nome.isNotBlank() && num != null && num in 0..999) {
+                    if (nome.isNotBlank() && num != null) {
                         onConfirm(nome.trim(), num, isGoleiro)
                     }
                 },
-                enabled = nome.isNotBlank() && !erroNumero
+                enabled = nome.isNotBlank() && !erroNumero && numero.isNotEmpty(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4B0082))
             ) {
-                Text("Adicionar")
+                Text("CADASTRAR", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancelar")
+                Text("CANCELAR", color = Color.Gray)
             }
         }
     )

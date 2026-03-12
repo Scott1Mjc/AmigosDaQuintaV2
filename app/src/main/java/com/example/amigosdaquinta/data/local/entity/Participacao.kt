@@ -5,8 +5,16 @@ import androidx.room.ForeignKey
 import androidx.room.PrimaryKey
 
 /**
- * Entidade que representa a participacao de um jogador em uma partida especifica.
- * Adicionado campo entrouComoSubstituto para persistência.
+ * Registra a participação e estatísticas de um jogador em uma partida específica.
+ *
+ * @property id Identificador único da participação.
+ * @property jogadorId ID do jogador (Chave Estrangeira).
+ * @property jogoId ID da partida (Chave Estrangeira).
+ * @property time Time que o jogador defendeu (BRANCO ou VERMELHO).
+ * @property gols Quantidade de gols marcados pelo jogador na partida.
+ * @property assistencias Quantidade de assistências realizadas pelo jogador.
+ * @property foiSubstituido Indica se o jogador saiu de campo (substituído).
+ * @property entrouComoSubstituto Indica se o jogador iniciou no banco e entrou durante a partida.
  */
 @Entity(
     tableName = "participacoes",

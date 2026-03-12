@@ -5,28 +5,26 @@ import com.example.amigosdaquinta.data.local.entity.StatusJogo
 import com.example.amigosdaquinta.data.local.entity.TimeColor
 
 /**
- * Conversores de tipos customizados para o Room.
- *
- * Room nao sabe serializar enums diretamente. Estes conversores persistem
- * [TimeColor] e [StatusJogo] como String (nome do valor do enum) no banco,
- * e restauram o enum via [Enum.valueOf] na leitura.
- *
- * Valores null sao preservados em ambas as direcoes — campos nullable no banco
- * correspondem a campos nullable nas entidades.
- *
- * Registrado globalmente em [AppDatabase] via @TypeConverters.
+ * Conversores de tipos para persistência no Room.
+ * 
+ * Permite que tipos complexos como Enums sejam armazenados no banco de dados SQLite
+ * como Strings e recuperados como objetos tipados.
  */
 class Converters {
 
+    /** Converte TimeColor para String. */
     @TypeConverter
     fun fromTimeColor(value: TimeColor?): String? = value?.name
 
+    /** Converte String para TimeColor. */
     @TypeConverter
     fun toTimeColor(value: String?): TimeColor? = value?.let { TimeColor.valueOf(it) }
 
+    /** Converte StatusJogo para String. */
     @TypeConverter
     fun fromStatusJogo(value: StatusJogo?): String? = value?.name
 
+    /** Converte String para StatusJogo. */
     @TypeConverter
     fun toStatusJogo(value: String?): StatusJogo? = value?.let { StatusJogo.valueOf(it) }
 }

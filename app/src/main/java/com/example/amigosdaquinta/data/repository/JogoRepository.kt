@@ -9,11 +9,13 @@ import com.example.amigosdaquinta.data.local.entity.TimeColor
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Repository para gerenciar operações de jogos e participações.
- * Centraliza a lógica de acesso a dados relacionados a jogos.
+ * Repositório responsável pela gestão das partidas (Jogos).
  *
- * @property jogoDao DAO de jogos
- * @property participacaoDao DAO de participações
+ * Centraliza as operações de criação, atualização, registro de placar e finalização de partidas,
+ * interagindo com os DAOs de Jogo e Participação.
+ *
+ * @property jogoDao Objeto de acesso a dados (DAO) da entidade Jogo.
+ * @property participacaoDao Objeto de acesso a dados (DAO) da entidade Participacao.
  */
 class JogoRepository(
     private val jogoDao: JogoDao,
@@ -21,93 +23,66 @@ class JogoRepository(
 ) {
 
     /**
-     * Obtém jogos em um intervalo de datas.
-     * Retorna ordenado do mais recente para o mais antigo.
+     * Retorna a lista de jogos realizados em um intervalo específico de datas.
+     * Ordenado cronologicamente de forma decrescente.
      *
-     * @param dataInicio Timestamp inicial
-     * @param dataFim Timestamp final
+     * @param dataInicio Timestamp inicial do intervalo.
+     * @param dataFim Timestamp final do intervalo.
      */
     fun obterJogosDoDia(dataInicio: Long, dataFim: Long): Flow<List<Jogo>> =
         jogoDao.obterJogosDoDia(dataInicio, dataFim)
 
     /**
-     * Obtém todos os jogos cadastrados.
-     * Usado para histórico completo.
+     * Retorna um fluxo com todos os jogos registrados no sistema.
      */
     fun obterTodos(): Flow<List<Jogo>> = jogoDao.obterTodos()
 
     /**
-     * Obtém um jogo específico por ID.
-     *
-     * @param id ID do jogo
-     * @return Jogo encontrado ou null
+     * Busca um jogo específico pelo seu ID.
      */
     suspend fun obterPorId(id: Long): Jogo? = jogoDao.obterPorId(id)
 
     /**
-     * Alias para obterPorId (mantido por compatibilidade).
-     */
-    suspend fun obterJogoPorId(id: Long): Jogo? = obterPorId(id)
-
-    /**
-     * Obtém múltiplos jogos por seus IDs.
-     * Útil para estatísticas de jogadores.
-     *
-     * @param ids Lista de IDs dos jogos
-     * @return Lista de jogos encontrados
+     * Busca múltiplos jogos por uma lista de IDs.
      */
     suspend fun obterPorIds(ids: List<Long>): List<Jogo> = jogoDao.obterPorIds(ids)
 
     /**
-     * Busca um jogo por status.
-     * Útil para encontrar jogo em andamento.
-     *
-     * @param status Status do jogo
-     * @return Primeiro jogo encontrado com esse status ou null
+     * Busca um jogo filtrando pelo seu status (ex: EM_ANDAMENTO).
      */
     suspend fun obterJogoPorStatus(status: StatusJogo): Jogo? =
         jogoDao.obterJogoPorStatus(status)
 
     /**
-     * Obtém o último jogo de um dia específico.
-     *
-     * @param dataInicio Início do dia
-     * @param dataFim Fim do dia
-     * @return Último jogo do dia ou null
+     * Busca o registro do último jogo ocorrido em um intervalo de datas.
      */
     suspend fun obterUltimoJogoDoDia(dataInicio: Long, dataFim: Long): Jogo? =
         jogoDao.obterUltimoJogoDoDia(dataInicio, dataFim)
 
     /**
-     * Cria um novo jogo no banco.
+     * Cria e persiste um novo jogo.
      *
-     * @param jogo Dados do jogo
-     * @return ID do jogo criado
+     * @param jogo Dados do jogo a ser criado.
+     * @return O ID gerado para a nova partida.
      */
     suspend fun criarJogo(jogo: Jogo): Long = jogoDao.inserir(jogo)
 
     /**
-     * Atualiza os dados de um jogo existente.
-     *
-     * @param jogo Jogo com dados atualizados
+     * Atualiza as informações completas de um jogo.
      */
     suspend fun atualizarJogo(jogo: Jogo) = jogoDao.atualizar(jogo)
 
     /**
-     * Atualiza apenas o status de um jogo.
-     *
-     * @param id ID do jogo
-     * @param status Novo status
+     * Atualiza apenas o status de uma partida específica.
      */
     suspend fun atualizarStatus(id: Long, status: StatusJogo) =
         jogoDao.atualizarStatus(id, status)
 
     /**
-     * Registra um gol para um dos times.
-     * Incrementa o placar correspondente.
+     * Incrementa o placar do time especificado para uma partida em andamento.
      *
-     * @param jogoId ID do jogo
-     * @param time Time que marcou o gol
+     * @param jogoId ID do jogo.
+     * @param time Time que marcou o gol (BRANCO ou VERMELHO).
      */
     suspend fun registrarGol(jogoId: Long, time: TimeColor) {
         val jogo = jogoDao.obterPorId(jogoId) ?: return
@@ -120,38 +95,30 @@ class JogoRepository(
     }
 
     /**
-     * Finaliza um jogo e define o vencedor.
+     * Conclui uma partida, definindo o status como FINALIZADO e o time vencedor.
      *
-     * @param id ID do jogo
-     * @param vencedor Time vencedor (ou null para empate)
+     * @param id ID do jogo.
+     * @param vencedor Time vencedor (nulo para empate).
      */
     suspend fun finalizarJogo(id: Long, vencedor: TimeColor?) =
         jogoDao.finalizarJogo(id, vencedor, StatusJogo.FINALIZADO)
 
     /**
-     * Conta quantos jogos aconteceram em um intervalo de datas.
-     *
-     * @param dataInicio Timestamp inicial
-     * @param dataFim Timestamp final
-     * @return Quantidade de jogos
+     * Conta a quantidade total de jogos realizados no intervalo especificado.
      */
     suspend fun contarJogosDoDia(dataInicio: Long, dataFim: Long): Int =
         jogoDao.contarJogosDoDia(dataInicio, dataFim)
 
     /**
-     * Obtém as participações de um jogo específico.
-     *
-     * @param jogoId ID do jogo
-     * @return Flow com lista de participações
+     * Retorna a lista de participações individuais dos jogadores de uma partida específica.
      */
     fun obterParticipacoesPorJogo(jogoId: Long): Flow<List<Participacao>> =
         participacaoDao.obterParticipacoesPorJogo(jogoId)
 
     /**
-     * Adiciona múltiplas participações de uma vez.
-     * Usado ao criar um jogo novo.
+     * Registra as participações de vários jogadores em uma única operação.
      *
-     * @param participacoes Lista de participações a serem inseridas
+     * @param participacoes Lista de objetos Participacao a serem inseridos.
      */
     suspend fun adicionarParticipacoes(participacoes: List<Participacao>) =
         participacaoDao.inserirVarias(participacoes)

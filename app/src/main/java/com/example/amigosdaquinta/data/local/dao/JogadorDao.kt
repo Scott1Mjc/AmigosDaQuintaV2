@@ -5,66 +5,76 @@ import com.example.amigosdaquinta.data.local.entity.Jogador
 import kotlinx.coroutines.flow.Flow
 
 /**
- * DAO de acesso aos dados de jogadores.
+ * Interface de acesso a dados para a entidade Jogador.
  *
- * O campo [numeroCamisa] é armazenado como String na entidade, portanto a ordenação
- * numérica é feita via CAST para evitar ordenação lexicográfica (ex: "10" < "9").
- *
- * Deleção física está disponível via [deletar], mas o fluxo padrão do app
- * utiliza inativação lógica via [marcarComoInativo] para preservar histórico.
+ * Implementa as operações fundamentais de persistência e consulta para os atletas
+ * do sistema Amigos da Quinta.
  */
 @Dao
 interface JogadorDao {
 
-    // region Consultas reativas (Flow)
-
-    /** Retorna apenas jogadores com [ativo] = true, ordenados pelo número de camisa numericamente. */
-    @Query("SELECT * FROM jogadores WHERE ativo = 1 ORDER BY CAST(numeroCamisa AS INTEGER) ASC")
+    /**
+     * Retorna um fluxo reativo de todos os jogadores ativos.
+     * Ordenados pelo número da camisa de forma crescente.
+     */
+    @Query("SELECT * FROM jogadores WHERE ativo = 1 ORDER BY numeroCamisa ASC")
     fun obterTodosAtivos(): Flow<List<Jogador>>
 
-    /** Retorna todos os jogadores (ativos e inativos), ordenados por nome. */
+    /**
+     * Retorna um fluxo reativo de todos os jogadores (ativos e inativos).
+     * Ordenados alfabeticamente pelo nome.
+     */
     @Query("SELECT * FROM jogadores ORDER BY nome ASC")
     fun obterTodos(): Flow<List<Jogador>>
 
-    /** Busca jogadores ativos cujo nome contenha o trecho informado (case-insensitive via LIKE). */
+    /**
+     * Busca jogadores ativos cujo nome contenha o termo pesquisado.
+     *
+     * @param nome Termo para pesquisa.
+     */
     @Query("SELECT * FROM jogadores WHERE nome LIKE '%' || :nome || '%' AND ativo = 1")
     fun buscarPorNome(nome: String): Flow<List<Jogador>>
 
-    /** Retorna apenas goleiros ativos. */
+    /**
+     * Retorna a lista de goleiros ativos.
+     */
     @Query("SELECT * FROM jogadores WHERE isPosicaoGoleiro = 1 AND ativo = 1")
     fun obterGoleiros(): Flow<List<Jogador>>
 
-    // endregion
-
-    // region Consultas suspend
-
+    /**
+     * Busca um jogador específico pelo seu ID.
+     */
     @Query("SELECT * FROM jogadores WHERE id = :id")
     suspend fun obterPorId(id: Long): Jogador?
 
+    /**
+     * Busca uma lista de jogadores pelos seus IDs.
+     */
     @Query("SELECT * FROM jogadores WHERE id IN (:ids)")
     suspend fun obterPorIds(ids: List<Long>): List<Jogador>
 
+    /**
+     * Retorna o total de jogadores ativos cadastrados.
+     */
     @Query("SELECT COUNT(*) FROM jogadores WHERE ativo = 1")
     suspend fun contarAtivos(): Int
 
-    // endregion
-
-    // region Escrita
-
-    /** Insere ou substitui o jogador em caso de conflito de chave primária. */
+    /**
+     * Insere ou atualiza um jogador.
+     */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun inserir(jogador: Jogador): Long
 
+    /**
+     * Atualiza os dados de um jogador existente.
+     */
     @Update
     suspend fun atualizar(jogador: Jogador)
 
-    /** Deleção física. Usar apenas em contextos administrativos; prefira [marcarComoInativo]. */
-    @Delete
-    suspend fun deletar(jogador: Jogador)
-
-    /** Inativação lógica: preserva histórico de participações e estatísticas. */
+    /**
+     * Marca um jogador como inativo (exclusão lógica).
+     * Mantém o registro no banco para integridade do histórico de partidas.
+     */
     @Query("UPDATE jogadores SET ativo = 0 WHERE id = :id")
     suspend fun marcarComoInativo(id: Long)
-
-    // endregion
 }
