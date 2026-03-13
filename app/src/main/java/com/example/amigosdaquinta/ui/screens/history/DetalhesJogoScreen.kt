@@ -168,7 +168,7 @@ private fun EscalacaoHistoricoCard(
                 items(ordenados) { part ->
                     val s = part.foiSubstituido
                     val e = part.entrouComoSubstituto
-                    val surfCol = if (s) Color(0xFF424242) else Color.White
+                    val surfCol = if (s) Color.Black else Color.White
                     val textCol = if (s) Color.White else Color.Black
 
                     Surface(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small, color = surfCol, shadowElevation = 0.5.dp) {

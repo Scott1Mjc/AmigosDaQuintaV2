@@ -23,13 +23,6 @@ import java.util.*
 
 /**
  * Tela de Histórico de Jogos.
- * 
- * Exibe uma lista cronológica das partidas realizadas nos últimos 30 dias.
- * Cada item da lista apresenta o placar, o vencedor e a duração da partida.
- * 
- * @param viewModel ViewModel que fornece os dados do histórico.
- * @param onNavigateBack Callback para retornar à tela anterior.
- * @param onJogoClick Callback para navegar para os detalhes de uma partida específica.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,7 +57,6 @@ fun HistoricoScreen(
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            // Cabeçalho estilizado
             HistoricoHeader()
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -113,10 +105,30 @@ private fun JogoHistoricoItem(jogo: Jogo, dateFormat: SimpleDateFormat, timeForm
         color = Color(0xFFF3F0F5)
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("${jogo.numeroJogo}° Jogo", style = MaterialTheme.typography.labelLarge, color = Color.DarkGray, fontWeight = FontWeight.Bold)
-                Text(dateFormat.format(Date(jogo.data)), style = MaterialTheme.typography.labelLarge, color = Color.DarkGray)
-                Text(timeFormat.format(Date(jogo.data)), style = MaterialTheme.typography.labelLarge, color = Color.DarkGray)
+            // Cabeçalho com data centralizada usando Box para precisão
+            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text(
+                    text = "${jogo.numeroJogo}° Jogo",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color.DarkGray,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.CenterStart)
+                )
+                
+                Text(
+                    text = dateFormat.format(Date(jogo.data)),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color.DarkGray,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Text(
+                    text = timeFormat.format(Date(jogo.data)),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color.DarkGray,
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))

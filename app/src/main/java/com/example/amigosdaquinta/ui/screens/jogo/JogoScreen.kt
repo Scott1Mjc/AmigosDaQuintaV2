@@ -32,6 +32,7 @@ fun JogoScreen(
     jogadoresViewModel: JogadoresViewModel,
     timeBranco: List<Jogador>,
     timeVermelho: List<Jogador>,
+    onNavigateBack: () -> Unit,
     onFinalizarJogo: (TimeColor?) -> Unit
 ) {
     val placarBranco by sessaoViewModel.placarBranco.collectAsState()
@@ -225,7 +226,6 @@ private fun ItemFilaJogo(jogador: Jogador, confirmado: Boolean, substituido: Boo
     Surface(
         modifier = Modifier.fillMaxWidth().alpha(if (substituido) 0.5f else 1f),
         shape = MaterialTheme.shapes.small,
-        color = if (substituido) Color(0xFF424242) else Color.White
     ) {
         Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = confirmado, onCheckedChange = { onToggle(jogador, confirmado) }, enabled = !substituido)

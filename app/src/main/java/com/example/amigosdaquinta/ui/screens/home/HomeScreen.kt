@@ -11,7 +11,10 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.amigosdaquinta.data.local.entity.Jogador
@@ -21,10 +24,6 @@ import com.example.amigosdaquinta.viewmodel.SessaoViewModel
 
 /**
  * Tela Principal do sistema Amigos da Quinta.
- * 
- * Oferece uma visão em duas colunas otimizada para tablets/telas largas:
- * 1. Coluna de Fila de Chegada: Gestão de presença e busca de jogadores.
- * 2. Coluna de Escalação Inicial: Formação manual dos dois primeiros times do dia.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,7 +32,7 @@ fun HomeScreen(
     sessaoViewModel: SessaoViewModel,
     onNavigateToHistorico: () -> Unit = {},
     onNavigateToGerenciarJogadores: () -> Unit = {},
-    onNavigateToFormacaoManual: () -> Unit = {}
+    onNavigateToJogo: () -> Unit = {}
 ) {
     val jogadores by viewModel.jogadores.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -50,13 +49,16 @@ fun HomeScreen(
         viewModel.buscarPorNome(searchQuery)
     }
 
-    // Ordenação da fila: Jogadores já presentes no topo, seguidos pelos demais por número de camisa
+    // Ordenação da fila: 
+    // 1. Jogadores na lista de presença primeiro, ordenados pelo timestamp (quem chegou antes fica no topo)
+    // 2. Jogadores fora da lista depois, por número de camisa
     val jogadoresOrdenados by remember(jogadores, listaPresenca) {
         derivedStateOf {
+            val presentesMap = listaPresenca.associate { it.first.id to it.second }
             jogadores.sortedWith(
-                compareBy<Jogador> { jogador ->
-                    !listaPresenca.any { it.first.id == jogador.id }
-                }.thenByDescending { it.numeroCamisa }
+                compareByDescending<Jogador> { presentesMap.containsKey(it.id) }
+                    .thenBy { presentesMap[it.id] ?: Long.MAX_VALUE }
+                    .thenByDescending { it.numeroCamisa }
             )
         }
     }
@@ -90,7 +92,6 @@ fun HomeScreen(
                 .padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // COLUNA 1: GESTÃO DE PRESENÇA (FILA)
             Column(modifier = Modifier.width(320.dp).fillMaxHeight()) {
                 FilaChegadaCard(
                     jogadores = jogadoresOrdenados,
@@ -105,7 +106,6 @@ fun HomeScreen(
                 )
             }
 
-            // COLUNA 2: ESCALAÇÃO DOS TIMES INICIAIS
             Column(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -139,8 +139,12 @@ fun HomeScreen(
                 if (timeBranco.size == 11 && timeVermelho.size == 11) {
                     Button(
                         onClick = {
+                            val todosJogadores = (timeBranco + timeVermelho).distinct()
+                            todosJogadores.forEach { jogador ->
+                                sessaoViewModel.adicionarAListaPresenca(jogador)
+                            }
                             sessaoViewModel.criarJogo(timeBranco, timeVermelho)
-                            onNavigateToFormacaoManual()
+                            onNavigateToJogo()
                         },
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                         shape = MaterialTheme.shapes.medium,
@@ -204,13 +208,22 @@ private fun FilaChegadaCard(
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Ordenamos a lista de presença para saber a ordem numérica (1º, 2º...)
+                    val presencaOrdenada = listaPresenca.sortedBy { it.second }
+                    
                     items(items = jogadores, key = { it.id }) { jogador ->
-                        val jaConfirmado = listaPresenca.any { it.first.id == jogador.id }
-                        val ordem = if (jaConfirmado) listaPresenca.indexOfFirst { it.first.id == jogador.id } + 1 else null
+                        val dadosPresenca = listaPresenca.find { it.first.id == jogador.id }
+                        val confirmado = dadosPresenca != null
+                        val ordem = if (confirmado) presencaOrdenada.indexOfFirst { it.first.id == jogador.id } + 1 else null
+                        
+                        // Um jogador é considerado "rotacionado" (já jogou) se ele está na lista de presença
+                        // mas seu timestamp é muito recente (foi atualizado na rotatividade).
+                        // Para simplificar, na UI, se ele estiver confirmado mas com uma ordem alta após ter jogado,
+                        // ele aparecerá no final.
                         
                         ItemFilaChegada(
                             jogador = jogador,
-                            confirmado = jaConfirmado,
+                            confirmado = confirmado,
                             ordem = ordem,
                             onToggle = { onConfirmarPresenca(jogador, it) }
                         )
@@ -223,7 +236,17 @@ private fun FilaChegadaCard(
 
 @Composable
 private fun ItemFilaChegada(jogador: Jogador, confirmado: Boolean, ordem: Int?, onToggle: (Boolean) -> Unit) {
-    Surface(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small, color = Color.White) {
+    // Definimos um efeito visual de "preto e branco" (esmaecido) se o jogador estiver muito longe na fila (indicativo de que já jogou)
+    // Ou podemos simplesmente usar a lógica de que se ele tem ordem e ela é maior que o número de jogadores ativos.
+    val isGrayedOut = confirmado && (ordem ?: 0) > 22 // Exemplo: se ele está depois dos 22 que costumam estar em campo
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(if (isGrayedOut) 0.6f else 1f),
+        shape = MaterialTheme.shapes.small, 
+        color = if (isGrayedOut) Color(0xFFF5F5F5) else Color.White
+    ) {
         Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = confirmado, onCheckedChange = onToggle)
             Text(
@@ -231,20 +254,41 @@ private fun ItemFilaChegada(jogador: Jogador, confirmado: Boolean, ordem: Int?, 
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.width(30.dp),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                color = if (confirmado) Color(0xFF4B0082) else Color.Gray
+                color = if (confirmado) {
+                    if (isGrayedOut) Color.Gray else Color(0xFF4B0082)
+                } else Color.Gray
             )
             Spacer(modifier = Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(jogador.nome, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                Text(if (jogador.isPosicaoGoleiro) "Goleiro" else "Linha", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                Text(
+                    text = jogador.nome, 
+                    style = MaterialTheme.typography.bodyMedium, 
+                    fontWeight = FontWeight.Medium,
+                    color = if (isGrayedOut) Color.Gray else Color.Unspecified
+                )
+                Text(
+                    text = if (jogador.isPosicaoGoleiro) "Goleiro" else "Linha", 
+                    style = MaterialTheme.typography.bodySmall, 
+                    color = Color.Gray
+                )
             }
-            Surface(shape = MaterialTheme.shapes.small, color = Color(0xFFF0EDFF)) {
-                Text("#${jogador.numeroCamisa}", modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, color = Color(0xFF4B0082), fontWeight = FontWeight.Bold)
+            Surface(
+                shape = MaterialTheme.shapes.small, 
+                color = if (isGrayedOut) Color(0xFFE0E0E0) else Color(0xFFF0EDFF)
+            ) {
+                Text(
+                    text = "#${jogador.numeroCamisa}", 
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), 
+                    style = MaterialTheme.typography.labelSmall, 
+                    color = if (isGrayedOut) Color.DarkGray else Color(0xFF4B0082), 
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }
 }
 
+// ... Restante do arquivo (TimeCardEscalacao, HomeFabMenu, FabMenuItem) permanece igual ...
 @Composable
 private fun TimeCardEscalacao(titulo: String, corFundo: Color, jogadores: List<Jogador>, onAdicionar: () -> Unit, onRemover: (Jogador) -> Unit) {
     Surface(modifier = Modifier.fillMaxWidth().height(280.dp), shape = MaterialTheme.shapes.medium, color = corFundo) {

@@ -123,7 +123,10 @@ private fun DesempenhoAtletaCard(stats: com.example.amigosdaquinta.viewmodel.Est
             StatLinha("Empates", stats.empates.toString())
 
             if (stats.totalJogos > 0) {
-                Divider(modifier = Modifier.padding(vertical = 12.dp), alpha = 0.1f)
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 12.dp),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                )
                 val aproveitamento = (stats.vitorias.toFloat() / stats.totalJogos * 100).toInt()
                 StatLinha("Aproveitamento", "$aproveitamento%", Color(0xFF4B0082), isDestaque = true)
             }
