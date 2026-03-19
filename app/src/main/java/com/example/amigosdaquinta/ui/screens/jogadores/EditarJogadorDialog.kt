@@ -18,12 +18,14 @@ import com.example.amigosdaquinta.data.local.entity.Jogador
  * Permite a atualização do nome, número da camisa e posição técnica.
  * 
  * @param jogador Atleta original para preenchimento dos campos.
+ * @param numerosEmUso Lista de números de camisa já cadastrados para validação de unicidade.
  * @param onDismiss Callback para cancelamento.
  * @param onConfirm Callback para salvar as alterações realizadas.
  */
 @Composable
 fun EditarJogadorDialog(
     jogador: Jogador,
+    numerosEmUso: List<Int> = emptyList(),
     onDismiss: () -> Unit,
     onConfirm: (Jogador) -> Unit
 ) {
@@ -33,6 +35,7 @@ fun EditarJogadorDialog(
 
     var erroNome by remember { mutableStateOf(false) }
     var erroNumero by remember { mutableStateOf(false) }
+    var numeroEmUsoPorOutro by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -55,22 +58,33 @@ fun EditarJogadorDialog(
                     shape = MaterialTheme.shapes.medium
                 )
 
-                OutlinedTextField(
-                    value = numero,
-                    onValueChange = { input ->
-                        val filtered = input.filter { it.isDigit() }.take(3)
-                        numero = filtered
-                        val num = filtered.toIntOrNull()
-                        erroNumero = num == null || num !in 0..999
-                    },
-                    label = { Text("Nº da Camisa") },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    isError = erroNumero,
-                    placeholder = { Text("0-999") },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.medium
-                )
+                Column {
+                    OutlinedTextField(
+                        value = numero,
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() }.take(3)
+                            numero = filtered
+                            val num = filtered.toIntOrNull()
+                            erroNumero = num == null || num !in 0..999
+                            numeroEmUsoPorOutro = num != null && num != jogador.numeroCamisa && numerosEmUso.contains(num)
+                        },
+                        label = { Text("Nº da Camisa") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = erroNumero || numeroEmUsoPorOutro,
+                        placeholder = { Text("0-999") },
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.medium
+                    )
+                    if (numeroEmUsoPorOutro) {
+                        Text(
+                            text = "Este número já está em uso por outro atleta",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(start = 16.dp, top = 4.dp)
+                        )
+                    }
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -97,11 +111,11 @@ fun EditarJogadorDialog(
             Button(
                 onClick = {
                     val num = numero.toIntOrNull()
-                    if (nome.isNotBlank() && num != null) {
+                    if (nome.isNotBlank() && num != null && !numeroEmUsoPorOutro) {
                         onConfirm(jogador.copy(nome = nome.trim(), numeroCamisa = num, isPosicaoGoleiro = isGoleiro))
                     }
                 },
-                enabled = nome.isNotBlank() && !erroNumero && numero.isNotEmpty(),
+                enabled = nome.isNotBlank() && !erroNumero && !numeroEmUsoPorOutro && numero.isNotEmpty(),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4B0082))
             ) {
                 Text("SALVAR", fontWeight = FontWeight.Bold)

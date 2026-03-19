@@ -28,7 +28,7 @@ class JogadorRepository(private val jogadorDao: JogadorDao) {
      *
      * @param nome Termo para pesquisa.
      */
-    fun buscarPorNome(nome: String): Flow<List<Jogador>> = jogadorDao.buscarPorNome(nome)
+    fun buscarPorNome(nome: String): Flow<List<Jogador>> = jogadorDao.buscarJogadores(nome)
 
     /**
      * Retorna a lista de goleiros ativos.
@@ -67,4 +67,19 @@ class JogadorRepository(private val jogadorDao: JogadorDao) {
      * Busca um jogador específico pelo seu ID.
      */
     suspend fun obterPorId(id: Long): Jogador? = jogadorDao.obterPorId(id)
+
+    /**
+     * Busca um jogador pelo número da camisa.
+     */
+    suspend fun obterPorNumeroCamisa(numero: Int): Jogador? = jogadorDao.obterPorNumeroCamisa(numero)
+
+    /**
+     * Atualiza o status de estar em campo de um jogador.
+     */
+    suspend fun atualizarStatusCampo(id: Long, emCampo: Boolean) = jogadorDao.atualizarStatusCampo(id, emCampo)
+
+    /**
+     * Atualiza o status de estar em campo de múltiplos jogadores.
+     */
+    suspend fun atualizarStatusCampoMuitos(ids: List<Long>, emCampo: Boolean) = jogadorDao.atualizarStatusCampoMuitos(ids, emCampo)
 }

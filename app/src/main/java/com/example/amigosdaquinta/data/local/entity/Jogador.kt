@@ -1,6 +1,7 @@
 package com.example.amigosdaquinta.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
@@ -11,8 +12,12 @@ import androidx.room.PrimaryKey
  * @property numeroCamisa Número identificador oficial do jogador (0-999).
  * @property isPosicaoGoleiro Indica se o jogador atua preferencialmente como goleiro.
  * @property ativo Define se o jogador está ativo. Inativação lógica é usada para preservar o histórico.
+ * @property estaEmCampo Indica se o jogador está participando da partida atual.
  */
-@Entity(tableName = "jogadores")
+@Entity(
+    tableName = "jogadores",
+    indices = [Index(value = ["numeroCamisa"], unique = true)]
+)
 data class Jogador(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
@@ -20,6 +25,7 @@ data class Jogador(
     val numeroCamisa: Int,
     val isPosicaoGoleiro: Boolean = false,
     val ativo: Boolean = true,
+    val estaEmCampo: Boolean = false
 ) {
     init {
         require(nome.isNotBlank()) { "O nome do jogador não pode estar em branco" }

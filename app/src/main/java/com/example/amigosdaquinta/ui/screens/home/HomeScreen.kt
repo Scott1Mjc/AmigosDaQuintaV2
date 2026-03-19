@@ -1,5 +1,6 @@
 package com.example.amigosdaquinta.ui.screens.home
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,12 +14,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorMatrix
-import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.amigosdaquinta.data.local.entity.Jogador
-import com.example.amigosdaquinta.ui.screens.formacao.SelecionarJogadorParaTimeDialog
 import com.example.amigosdaquinta.viewmodel.JogadoresViewModel
 import com.example.amigosdaquinta.viewmodel.SessaoViewModel
 
@@ -34,45 +35,74 @@ fun HomeScreen(
     onNavigateToGerenciarJogadores: () -> Unit = {},
     onNavigateToJogo: () -> Unit = {}
 ) {
-    val jogadores by viewModel.jogadores.collectAsState()
+    val context = LocalContext.current
+    val jogadoresBanco by viewModel.jogadores.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val listaPresenca by sessaoViewModel.listaPresenca.collectAsState()
 
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var timeBranco by rememberSaveable { mutableStateOf<List<Jogador>>(emptyList()) }
     var timeVermelho by rememberSaveable { mutableStateOf<List<Jogador>>(emptyList()) }
-    var showSelecionarDialog by remember { mutableStateOf(false) }
-    var timeParaAdicionar by remember { mutableStateOf<String?>(null) }
     var showFabMenu by remember { mutableStateOf(false) }
+    var showExitDialog by remember { mutableStateOf(false) }
+    var modoRapido by rememberSaveable { mutableStateOf(false) }
 
+    // Intercepta o botão voltar do sistema
+    BackHandler {
+        showExitDialog = true
+    }
+
+    // Dispara a busca no banco apenas quando o texto muda
     LaunchedEffect(searchQuery) {
         viewModel.buscarPorNome(searchQuery)
     }
 
-    // Ordenação da fila: 
-    // 1. Jogadores na lista de presença primeiro, ordenados pelo timestamp (quem chegou antes fica no topo)
-    // 2. Jogadores fora da lista depois, por número de camisa
-    val jogadoresOrdenados by remember(jogadores, listaPresenca) {
+    // Lógica de exibição refinada para evitar "piscadas"
+    val jogadoresExibidos by remember(jogadoresBanco, listaPresenca, searchQuery, modoRapido) {
         derivedStateOf {
-            val presentesMap = listaPresenca.associate { it.first.id to it.second }
-            jogadores.sortedWith(
-                compareByDescending<Jogador> { presentesMap.containsKey(it.id) }
-                    .thenBy { presentesMap[it.id] ?: Long.MAX_VALUE }
+            if (modoRapido || searchQuery.isBlank()) {
+                // No modo rápido ou sem busca, mostra apenas a fila de presença
+                listaPresenca.sortedBy { it.second }.map { it.first }
+            } else {
+                // Modo Busca Normal: Resultados do banco
+                val presentesIds = listaPresenca.map { it.first.id }.toSet()
+                jogadoresBanco.sortedWith(
+                    compareByDescending<Jogador> { presentesIds.contains(it.id) }
                     .thenByDescending { it.numeroCamisa }
-            )
+                )
+            }
         }
     }
-
-    val jogadoresDisponiveis = jogadores.filter { jogador ->
-        !timeBranco.any { it.id == jogador.id } &&
-        !timeVermelho.any { it.id == jogador.id }
-    }.sortedByDescending { it.numeroCamisa }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Amigos da Quinta", color = Color.Black) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White),
+                actions = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        Text(
+                            text = if (modoRapido) "Modo Rápido" else "Modo Normal",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (modoRapido) Color(0xFF4B0082) else Color.Gray,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Switch(
+                            checked = modoRapido,
+                            onCheckedChange = { modoRapido = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color(0xFF4B0082),
+                                uncheckedThumbColor = Color.Gray,
+                                uncheckedTrackColor = Color.LightGray
+                            )
+                        )
+                    }
+                }
             )
         },
         floatingActionButton = {
@@ -92,32 +122,68 @@ fun HomeScreen(
                 .padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Column(modifier = Modifier.width(320.dp).fillMaxHeight()) {
+            // COLUNA 1: FILA / BUSCA
+            Column(modifier = Modifier.weight(0.4f).fillMaxHeight()) {
                 FilaChegadaCard(
-                    jogadores = jogadoresOrdenados,
+                    jogadores = jogadoresExibidos,
+                    jogadoresResultados = jogadoresBanco,
                     listaPresenca = listaPresenca,
+                    timeBranco = timeBranco,
+                    timeVermelho = timeVermelho,
                     isLoading = isLoading,
                     searchQuery = searchQuery,
+                    modoRapido = modoRapido,
                     onSearchChange = { searchQuery = it },
                     onConfirmarPresenca = { jogador, confirmado ->
-                        if (confirmado) sessaoViewModel.adicionarAListaPresenca(jogador)
-                        else sessaoViewModel.removerDaListaPresenca(jogador.id)
+                        if (confirmado) {
+                            sessaoViewModel.adicionarAListaPresenca(jogador)
+                            searchQuery = "" // Limpa busca ao selecionar
+                        } else {
+                            sessaoViewModel.removerDaListaPresenca(jogador.id)
+                        }
+                    },
+                    onAdicionarAoTime = { jogador, time ->
+                        sessaoViewModel.adicionarAListaPresenca(jogador)
+                        searchQuery = "" 
+                        
+                        if (time == "BRANCO") {
+                            if (timeBranco.size < 11 && !timeBranco.any { it.id == jogador.id } && !timeVermelho.any { it.id == jogador.id }) {
+                                if (jogador.isPosicaoGoleiro) {
+                                    if (!timeBranco.any { it.isPosicaoGoleiro }) {
+                                        timeBranco = timeBranco + jogador
+                                    }
+                                } else {
+                                    if (timeBranco.count { !it.isPosicaoGoleiro } < 10) {
+                                        timeBranco = timeBranco + jogador
+                                    }
+                                }
+                            }
+                        } else {
+                            if (timeVermelho.size < 11 && !timeVermelho.any { it.id == jogador.id } && !timeBranco.any { it.id == jogador.id }) {
+                                if (jogador.isPosicaoGoleiro) {
+                                    if (!timeVermelho.any { it.isPosicaoGoleiro }) {
+                                        timeVermelho = timeVermelho + jogador
+                                    }
+                                } else {
+                                    if (timeVermelho.count { !it.isPosicaoGoleiro } < 10) {
+                                        timeVermelho = timeVermelho + jogador
+                                    }
+                                }
+                            }
+                        }
                     }
                 )
             }
 
+            // COLUNA 2: TIMES
             Column(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.weight(0.6f).fillMaxHeight(),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 TimeCardEscalacao(
                     titulo = "Time Vermelho",
                     corFundo = Color(0xFFFFE1E1),
                     jogadores = timeVermelho,
-                    onAdicionar = {
-                        timeParaAdicionar = "VERMELHO"
-                        showSelecionarDialog = true
-                    },
                     onRemover = { jogador ->
                         timeVermelho = timeVermelho.filter { it.id != jogador.id }
                     }
@@ -127,10 +193,6 @@ fun HomeScreen(
                     titulo = "Time Branco",
                     corFundo = Color(0xFFE8E2FF),
                     jogadores = timeBranco,
-                    onAdicionar = {
-                        timeParaAdicionar = "BRANCO"
-                        showSelecionarDialog = true
-                    },
                     onRemover = { jogador ->
                         timeBranco = timeBranco.filter { it.id != jogador.id }
                     }
@@ -140,9 +202,7 @@ fun HomeScreen(
                     Button(
                         onClick = {
                             val todosJogadores = (timeBranco + timeVermelho).distinct()
-                            todosJogadores.forEach { jogador ->
-                                sessaoViewModel.adicionarAListaPresenca(jogador)
-                            }
+                            todosJogadores.forEach { sessaoViewModel.adicionarAListaPresenca(it) }
                             sessaoViewModel.criarJogo(timeBranco, timeVermelho)
                             onNavigateToJogo()
                         },
@@ -157,17 +217,24 @@ fun HomeScreen(
         }
     }
 
-    if (showSelecionarDialog && timeParaAdicionar != null) {
-        val jaTemGoleiro = if (timeParaAdicionar == "BRANCO") timeBranco.any { it.isPosicaoGoleiro } else timeVermelho.any { it.isPosicaoGoleiro }
-        val jogadoresFiltrados = if (jaTemGoleiro) jogadoresDisponiveis.filter { !it.isPosicaoGoleiro } else jogadoresDisponiveis
-
-        SelecionarJogadorParaTimeDialog(
-            jogadores = jogadoresFiltrados,
-            onDismiss = { showSelecionarDialog = false },
-            onSelect = { jogador ->
-                if (timeParaAdicionar == "BRANCO" && timeBranco.size < 11) timeBranco = timeBranco + jogador
-                else if (timeParaAdicionar == "VERMELHO" && timeVermelho.size < 11) timeVermelho = timeVermelho + jogador
-                showSelecionarDialog = false
+    // Diálogo de Confirmação de Saída
+    if (showExitDialog) {
+        AlertDialog(
+            onDismissRequest = { showExitDialog = false },
+            title = { Text("Sair do Programa", fontWeight = FontWeight.Bold) },
+            text = { Text("Deseja realmente fechar o Amigos da Quinta?") },
+            confirmButton = {
+                Button(
+                    onClick = { (context as? android.app.Activity)?.finish() },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) {
+                    Text("SAIR", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExitDialog = false }) {
+                    Text("CANCELAR", color = Color.Gray)
+                }
             }
         )
     }
@@ -176,11 +243,16 @@ fun HomeScreen(
 @Composable
 private fun FilaChegadaCard(
     jogadores: List<Jogador>,
+    jogadoresResultados: List<Jogador>,
     listaPresenca: List<Pair<Jogador, Long>>,
+    timeBranco: List<Jogador>,
+    timeVermelho: List<Jogador>,
     isLoading: Boolean,
     searchQuery: String,
+    modoRapido: Boolean,
     onSearchChange: (String) -> Unit,
-    onConfirmarPresenca: (Jogador, Boolean) -> Unit
+    onConfirmarPresenca: (Jogador, Boolean) -> Unit,
+    onAdicionarAoTime: (Jogador, String) -> Unit
 ) {
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -188,15 +260,37 @@ private fun FilaChegadaCard(
         color = Color(0xFFEBE8EC)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("Confirmar Chegada", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(
+                text = if (modoRapido || searchQuery.isBlank()) "Fila de Presença" else "Resultados da Busca", 
+                style = MaterialTheme.typography.titleLarge, 
+                fontWeight = FontWeight.Bold
+            )
             Spacer(modifier = Modifier.height(12.dp))
             
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = onSearchChange,
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Pesquisar jogador...") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                placeholder = { Text("Nome ou número...") },
+                leadingIcon = { Icon(Icons.Default.Search, null) },
+                trailingIcon = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { onSearchChange("") }) { Icon(Icons.Default.Close, null) }
+                        }
+                        if (modoRapido && searchQuery.isNotBlank()) {
+                            IconButton(
+                                onClick = {
+                                    if (jogadoresResultados.isNotEmpty()) {
+                                        onConfirmarPresenca(jogadoresResultados.first(), true)
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Default.ArrowForward, contentDescription = "Confirmar", tint = Color(0xFF4B0082))
+                            }
+                        }
+                    }
+                },
                 singleLine = true,
                 shape = MaterialTheme.shapes.medium,
                 colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color.White, unfocusedContainerColor = Color.White)
@@ -204,28 +298,39 @@ private fun FilaChegadaCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            if (isLoading) {
+            if (isLoading && jogadores.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // Ordenamos a lista de presença para saber a ordem numérica (1º, 2º...)
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     val presencaOrdenada = listaPresenca.sortedBy { it.second }
                     
+                    val linhaBCount = timeBranco.count { !it.isPosicaoGoleiro }
+                    val linhaVCount = timeVermelho.count { !it.isPosicaoGoleiro }
+                    val jaTemGoleiroB = timeBranco.any { it.isPosicaoGoleiro }
+                    val jaTemGoleiroV = timeVermelho.any { it.isPosicaoGoleiro }
+
                     items(items = jogadores, key = { it.id }) { jogador ->
                         val dadosPresenca = listaPresenca.find { it.first.id == jogador.id }
                         val confirmado = dadosPresenca != null
                         val ordem = if (confirmado) presencaOrdenada.indexOfFirst { it.first.id == jogador.id } + 1 else null
+                        val jaEscalado = timeBranco.any { it.id == jogador.id } || timeVermelho.any { it.id == jogador.id }
                         
-                        // Um jogador é considerado "rotacionado" (já jogou) se ele está na lista de presença
-                        // mas seu timestamp é muito recente (foi atualizado na rotatividade).
-                        // Para simplificar, na UI, se ele estiver confirmado mas com uma ordem alta após ter jogado,
-                        // ele aparecerá no final.
-                        
+                        val bloquearB = if (jogador.isPosicaoGoleiro) jaTemGoleiroB else linhaBCount >= 10
+                        val bloquearV = if (jogador.isPosicaoGoleiro) jaTemGoleiroV else linhaVCount >= 10
+
                         ItemFilaChegada(
                             jogador = jogador,
                             confirmado = confirmado,
                             ordem = ordem,
-                            onToggle = { onConfirmarPresenca(jogador, it) }
+                            jaEscalado = jaEscalado,
+                            bloquearB = bloquearB,
+                            bloquearV = bloquearV,
+                            onToggle = { onConfirmarPresenca(jogador, it) },
+                            onAddV = { onAdicionarAoTime(jogador, "VERMELHO") },
+                            onAddB = { onAdicionarAoTime(jogador, "BRANCO") }
                         )
                     }
                 }
@@ -235,83 +340,119 @@ private fun FilaChegadaCard(
 }
 
 @Composable
-private fun ItemFilaChegada(jogador: Jogador, confirmado: Boolean, ordem: Int?, onToggle: (Boolean) -> Unit) {
-    // Definimos um efeito visual de "preto e branco" (esmaecido) se o jogador estiver muito longe na fila (indicativo de que já jogou)
-    // Ou podemos simplesmente usar a lógica de que se ele tem ordem e ela é maior que o número de jogadores ativos.
-    val isGrayedOut = confirmado && (ordem ?: 0) > 22 // Exemplo: se ele está depois dos 22 que costumam estar em campo
-
+private fun ItemFilaChegada(
+    jogador: Jogador, 
+    confirmado: Boolean, 
+    ordem: Int?, 
+    jaEscalado: Boolean,
+    bloquearB: Boolean,
+    bloquearV: Boolean,
+    onToggle: (Boolean) -> Unit,
+    onAddV: () -> Unit,
+    onAddB: () -> Unit
+) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .alpha(if (isGrayedOut) 0.6f else 1f),
+            .alpha(if (jaEscalado) 0.7f else 1f),
         shape = MaterialTheme.shapes.small, 
-        color = if (isGrayedOut) Color(0xFFF5F5F5) else Color.White
+        color = if (jaEscalado) Color(0xFFF0F0F0) else Color.White
     ) {
-        Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = confirmado, onCheckedChange = onToggle)
+            
             Text(
                 text = if (confirmado) "${ordem}º" else "-",
                 style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.width(30.dp),
+                modifier = Modifier.width(28.dp),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                color = if (confirmado) {
-                    if (isGrayedOut) Color.Gray else Color(0xFF4B0082)
-                } else Color.Gray
+                color = if (confirmado) Color(0xFF4B0082) else Color.Gray
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            Column(modifier = Modifier.weight(1f)) {
+            
+            Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
                 Text(
                     text = jogador.nome, 
                     style = MaterialTheme.typography.bodyMedium, 
-                    fontWeight = FontWeight.Medium,
-                    color = if (isGrayedOut) Color.Gray else Color.Unspecified
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = if (jaEscalado) Color.Gray else Color.Black
                 )
                 Text(
                     text = if (jogador.isPosicaoGoleiro) "Goleiro" else "Linha", 
-                    style = MaterialTheme.typography.bodySmall, 
+                    style = MaterialTheme.typography.labelSmall, 
                     color = Color.Gray
                 )
             }
-            Surface(
-                shape = MaterialTheme.shapes.small, 
-                color = if (isGrayedOut) Color(0xFFE0E0E0) else Color(0xFFF0EDFF)
-            ) {
-                Text(
-                    text = "#${jogador.numeroCamisa}", 
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), 
-                    style = MaterialTheme.typography.labelSmall, 
-                    color = if (isGrayedOut) Color.DarkGray else Color(0xFF4B0082), 
-                    fontWeight = FontWeight.Bold
-                )
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = MaterialTheme.shapes.small, 
+                    color = Color(0xFFF0EDFF)
+                ) {
+                    Text(
+                        text = "#${jogador.numeroCamisa}", 
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), 
+                        style = MaterialTheme.typography.labelSmall, 
+                        color = Color(0xFF4B0082), 
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("|", color = Color.LightGray, fontSize = 20.sp)
+                
+                // Botão Vermelho
+                IconButton(
+                    onClick = onAddV,
+                    enabled = !jaEscalado && !bloquearV,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Text("V", color = if (jaEscalado || bloquearV) Color.Gray else Color.Black, fontWeight = FontWeight.Black, fontSize = 16.sp)
+                }
+                
+                // Botão Branco
+                IconButton(
+                    onClick = onAddB,
+                    enabled = !jaEscalado && !bloquearB,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Text("B", color = if (jaEscalado || bloquearB) Color.Gray else Color.Black, fontWeight = FontWeight.Black, fontSize = 16.sp)
+                }
             }
         }
     }
 }
 
-// ... Restante do arquivo (TimeCardEscalacao, HomeFabMenu, FabMenuItem) permanece igual ...
 @Composable
-private fun TimeCardEscalacao(titulo: String, corFundo: Color, jogadores: List<Jogador>, onAdicionar: () -> Unit, onRemover: (Jogador) -> Unit) {
+private fun TimeCardEscalacao(
+    titulo: String, 
+    corFundo: Color, 
+    jogadores: List<Jogador>, 
+    onRemover: (Jogador) -> Unit
+) {
     Surface(modifier = Modifier.fillMaxWidth().height(280.dp), shape = MaterialTheme.shapes.medium, color = corFundo) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(titulo, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text("${jogadores.size}/11", style = MaterialTheme.typography.titleMedium)
             }
+            
             Spacer(modifier = Modifier.height(8.dp))
-            if (jogadores.size < 11) {
-                OutlinedButton(onClick = onAdicionar, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                    Text("Adicionar")
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
+
             LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                items(jogadores) { jogador ->
+                items(jogadores, key = { it.id }) { jogador ->
                     Surface(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraSmall, color = Color.White) {
                         Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(if (jogador.isPosicaoGoleiro) "[GOL] ${jogador.nome}" else jogador.nome, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                            Text(
+                                text = (if (jogador.isPosicaoGoleiro) "[GOL] " else "") + jogador.nome, 
+                                style = MaterialTheme.typography.bodySmall, 
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                             IconButton(onClick = { onRemover(jogador) }, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Default.Close, contentDescription = null, tint = Color.Red, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.Close, null, tint = Color.Red, modifier = Modifier.size(16.dp))
                             }
                         }
                     }

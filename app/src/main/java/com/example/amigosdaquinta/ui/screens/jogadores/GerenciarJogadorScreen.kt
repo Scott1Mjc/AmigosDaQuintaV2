@@ -1,8 +1,10 @@
 package com.example.amigosdaquinta.ui.screens.jogadores
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -14,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.amigosdaquinta.data.local.entity.Jogador
 import com.example.amigosdaquinta.viewmodel.JogadoresViewModel
@@ -21,12 +24,6 @@ import com.example.amigosdaquinta.ui.screens.home.AdicionarJogadorDialog
 
 /**
  * Tela para gestão do elenco (CRUD de Jogadores).
- * 
- * Permite listar, adicionar, editar e inativar atletas. 
- * Segue o padrão visual de cores Lavanda/Cinza do sistema.
- *
- * @param viewModel ViewModel que gerencia a lógica de dados dos jogadores.
- * @param onNavigateBack Callback para retornar à tela anterior.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,13 +33,24 @@ fun GerenciarJogadoresScreen(
 ) {
     val jogadores by viewModel.jogadores.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val erroMensagem by viewModel.erroMensagem.collectAsState()
 
     var showAdicionarDialog by remember { mutableStateOf(false) }
     var jogadorParaEditar by remember { mutableStateOf<Jogador?>(null) }
     var jogadorParaRemover by remember { mutableStateOf<Jogador?>(null) }
 
+    // Garante que a lista de jogadores mostrada nesta tela não seja afetada por buscas residuais da HomeScreen
+    DisposableEffect(Unit) {
+        viewModel.buscarPorNome("") // Reseta qualquer busca ao entrar na tela
+        onDispose { }
+    }
+
     val jogadoresOrdenados by remember(jogadores) {
         derivedStateOf { jogadores.sortedBy { it.numeroCamisa } }
+    }
+    
+    val numerosEmUso = remember(jogadores) {
+        jogadores.map { it.numeroCamisa }
     }
 
     Scaffold(
@@ -68,18 +76,22 @@ fun GerenciarJogadoresScreen(
         },
         containerColor = Color(0xFFF8F9FA)
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(padding)) {
+            val columns = if (maxWidth > 600.dp) 2 else 1
+            
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = Color(0xFF4B0082))
             } else if (jogadores.isEmpty()) {
                 EmptyJogadoresState()
             } else {
-                LazyColumn(
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(columns),
                     modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(top = 16.dp, bottom = 80.dp)
                 ) {
-                    item {
+                    item(span = { GridItemSpan(columns) }) {
                         TotalJogadoresCard(total = jogadores.size)
                     }
 
@@ -99,6 +111,7 @@ fun GerenciarJogadoresScreen(
 
     if (showAdicionarDialog) {
         AdicionarJogadorDialog(
+            numerosExistentes = numerosEmUso,
             onDismiss = { showAdicionarDialog = false },
             onConfirm = { nome, numero, isGoleiro ->
                 viewModel.adicionarJogador(nome, numero, isGoleiro)
@@ -110,8 +123,9 @@ fun GerenciarJogadoresScreen(
     jogadorParaEditar?.let { jogador ->
         EditarJogadorDialog(
             jogador = jogador,
+            numerosEmUso = numerosEmUso,
             onDismiss = { jogadorParaEditar = null },
-            onConfirm = { atualizado ->
+            onConfirm = { atualizado: Jogador ->
                 viewModel.editarJogador(atualizado.id, atualizado.nome, atualizado.numeroCamisa, atualizado.isPosicaoGoleiro)
                 jogadorParaEditar = null
             }
@@ -130,6 +144,20 @@ fun GerenciarJogadoresScreen(
     }
 
     // endregion
+    
+    // Alerta de Erro
+    erroMensagem?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { viewModel.limparErro() },
+            title = { Text("Atenção") },
+            text = { Text(msg) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.limparErro() }) {
+                    Text("OK", color = Color(0xFF4B0082), fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -160,17 +188,29 @@ private fun JogadorGerenciarItem(jogador: Jogador, onEditar: () -> Unit, onRemov
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(jogador.nome, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text(if (jogador.isPosicaoGoleiro) "Goleiro" else "Jogador de Linha", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                Text(
+                    text = jogador.nome, 
+                    style = MaterialTheme.typography.titleMedium, 
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(if (jogador.isPosicaoGoleiro) "Goleiro" else "Linha", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
             }
             
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Surface(shape = MaterialTheme.shapes.small, color = Color(0xFFF0EDFF)) {
-                    Text("#${jogador.numeroCamisa}", modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelLarge, color = Color(0xFF4B0082), fontWeight = FontWeight.Bold)
+                    Text(
+                        "#${jogador.numeroCamisa}", 
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), 
+                        style = MaterialTheme.typography.labelLarge, 
+                        color = Color(0xFF4B0082), 
+                        fontWeight = FontWeight.Bold
+                    )
                 }
                 
-                IconButton(onClick = onEditar) { Icon(Icons.Default.Edit, "Editar", tint = Color.Gray) }
-                IconButton(onClick = onRemover) { Icon(Icons.Default.Delete, "Remover", tint = Color.Red.copy(alpha = 0.7f)) }
+                IconButton(onClick = onEditar, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Edit, "Editar", tint = Color.Gray, modifier = Modifier.size(20.dp)) }
+                IconButton(onClick = onRemover, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Delete, "Remover", tint = Color.Red.copy(alpha = 0.7f), modifier = Modifier.size(20.dp)) }
             }
         }
     }
@@ -198,7 +238,7 @@ private fun ConfirmarRemocaoDialog(jogador: Jogador, onDismiss: () -> Unit, onCo
             Button(onClick = onConfirm, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Remover") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar") }
+            TextButton(onClick = { onDismiss() }) { Text("Cancelar") }
         }
     )
 }

@@ -3,8 +3,12 @@ package com.example.amigosdaquinta
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
 import androidx.navigation.compose.rememberNavController
 import com.example.amigosdaquinta.data.local.AppDatabase
 import com.example.amigosdaquinta.data.repository.JogadorRepository
@@ -20,35 +24,35 @@ import com.example.amigosdaquinta.viewmodel.SessaoViewModel
 
 /**
  * Ponto de entrada principal do aplicativo Amigos da Quinta.
- * 
- * Responsável pela inicialização da infraestrutura do app:
- * - Banco de Dados (Room)
- * - Repositórios
- * - ViewModels (via Injeção de Dependência manual com Factory)
- * - Navegação e Tema
  */
 class MainActivity : ComponentActivity() {
 
-    // Inicialização tardia dos componentes de dados
     private val database by lazy { AppDatabase.getDatabase(this) }
     private val jogadorRepo by lazy { JogadorRepository(database.jogadorDao()) }
     private val jogoRepo by lazy { JogoRepository(database.jogoDao(), database.participacaoDao()) }
     private val presencaRepo by lazy { PresencaRepository(database.presencaDao()) }
     private val partRepo by lazy { ParticipacaoRepository(database.participacaoDao()) }
 
-    // Provedor de ViewModels
     private val factory by lazy { AppViewModelFactory(jogadorRepo, jogoRepo, partRepo, presencaRepo) }
 
-    // Instâncias únicas de ViewModel para toda a sessão
     private val jogadoresViewModel: JogadoresViewModel by viewModels { factory }
     private val sessaoViewModel: SessaoViewModel by viewModels { factory }
     private val historicoViewModel: HistoricoViewModel by viewModels { factory }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Ativa o Edge-to-Edge para tornar o app 100% responsivo em qualquer tela
+        enableEdgeToEdge()
+
         setContent {
             AmigosDaQuintaTheme {
-                Surface {
+                // Surface preenche toda a tela e aplica padding seguro para evitar recortes em câmeras/notches
+                Surface(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .safeDrawingPadding()
+                ) {
                     NavGraph(
                         navController = rememberNavController(),
                         jogadoresViewModel = jogadoresViewModel,

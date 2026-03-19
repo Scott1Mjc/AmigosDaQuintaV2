@@ -6,7 +6,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -18,14 +17,11 @@ import com.example.amigosdaquinta.data.local.entity.Jogador
  * 
  * Organiza os atletas em seções (Goleiros e Linha) para facilitar a montagem
  * estratégica das equipes.
- *
- * @param jogadores Lista de atletas disponíveis para escalação.
- * @param onDismiss Callback para cancelamento.
- * @param onSelect Callback acionado ao escolher um atleta.
  */
 @Composable
 fun SelecionarJogadorParaTimeDialog(
     jogadores: List<Jogador>,
+    bloquearGoleiros: Boolean = false,
     onDismiss: () -> Unit,
     onSelect: (Jogador) -> Unit
 ) {
@@ -62,12 +58,18 @@ fun SelecionarJogadorParaTimeDialog(
                     LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
                         if (goleiros.isNotEmpty()) {
                             item { SectionHeader("GOLEIROS") }
-                            items(goleiros) { jog -> ItemSelecao(jog, onSelect) }
+                            items(goleiros) { jog -> 
+                                ItemSelecao(
+                                    jogador = jog, 
+                                    enabled = !bloquearGoleiros,
+                                    onSelect = onSelect 
+                                ) 
+                            }
                         }
 
                         if (linha.isNotEmpty()) {
                             item { SectionHeader("JOGADORES DE LINHA") }
-                            items(linha) { jog -> ItemSelecao(jog, onSelect) }
+                            items(linha) { jog -> ItemSelecao(jogador = jog, onSelect = onSelect) }
                         }
                     }
                 }
@@ -92,18 +94,30 @@ private fun SectionHeader(text: String) {
 }
 
 @Composable
-private fun ItemSelecao(jogador: Jogador, onSelect: (Jogador) -> Unit) {
+private fun ItemSelecao(
+    jogador: Jogador, 
+    enabled: Boolean = true,
+    onSelect: (Jogador) -> Unit
+) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .clickable { onSelect(jogador) },
+            .clickable(enabled = enabled) { onSelect(jogador) },
         shape = MaterialTheme.shapes.small,
-        color = Color(0xFFF3F0F5)
+        color = if (enabled) Color(0xFFF3F0F5) else Color(0xFFE0E0E0)
     ) {
         Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(jogador.nome, fontWeight = FontWeight.Medium)
-            Text("#${jogador.numeroCamisa}", fontWeight = FontWeight.Bold, color = Color(0xFF4B0082))
+            Text(
+                text = jogador.nome, 
+                fontWeight = FontWeight.Medium,
+                color = if (enabled) Color.Unspecified else Color.Gray
+            )
+            Text(
+                text = "#${jogador.numeroCamisa}", 
+                fontWeight = FontWeight.Bold, 
+                color = if (enabled) Color(0xFF4B0082) else Color.Gray
+            )
         }
     }
 }

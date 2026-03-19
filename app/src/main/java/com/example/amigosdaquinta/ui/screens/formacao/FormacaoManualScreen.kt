@@ -1,6 +1,8 @@
 package com.example.amigosdaquinta.ui.screens.formacao
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -15,14 +17,6 @@ import com.example.amigosdaquinta.viewmodel.SessaoViewModel
 
 /**
  * Tela de Formação Manual de Partida.
- * 
- * Permite a seleção individual dos atletas para compor os times Branco e Vermelho.
- * Valida se ambos os times possuem 11 jogadores e ao menos um goleiro antes de permitir o início.
- *
- * @param jogadoresPresentes Lista de atletas que confirmaram presença na sessão.
- * @param sessaoViewModel ViewModel para criação da partida e registro das escalações.
- * @param onNavigateBack Callback para retornar à tela anterior.
- * @param onIniciarJogo Callback acionado após a criação bem-sucedida do jogo.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,7 +56,11 @@ fun FormacaoManualScreen(
         containerColor = Color(0xFFF8F9FA)
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState())
         ) {
             // Painel de Instruções
             Surface(
@@ -78,9 +76,9 @@ fun FormacaoManualScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Área de Escalação (Lado a Lado)
+            // Área de Escalação (Lado a Lado) - Altura fixa para permitir scroll na tela toda
             Row(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.height(500.dp).fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 TimeFormadoCard(
@@ -116,7 +114,7 @@ fun FormacaoManualScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Botão de Confirmação Final
             Button(
@@ -135,15 +133,18 @@ fun FormacaoManualScreen(
                     fontWeight = FontWeight.Bold
                 )
             }
+            
+            // Margem inferior extra para tablets pequenos em paisagem
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 
     if (showDialog && timeParaAdicionar != null) {
         val jaTemGoleiro = if (timeParaAdicionar == TimeColor.BRANCO) timeBranco.any { it.isPosicaoGoleiro } else timeVermelho.any { it.isPosicaoGoleiro }
-        val listaFiltrada = if (jaTemGoleiro) jogadoresDisponiveis.filter { !it.isPosicaoGoleiro } else jogadoresDisponiveis
-
+        
         SelecionarJogadorParaTimeDialog(
-            jogadores = listaFiltrada,
+            jogadores = jogadoresDisponiveis,
+            bloquearGoleiros = jaTemGoleiro,
             onDismiss = {
                 showDialog = false
                 timeParaAdicionar = null

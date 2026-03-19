@@ -55,12 +55,12 @@ fun PlacarComponent(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // LADO BRANCO
+            // LADO VERMELHO (Invertido para alinhar com o card lateral)
             ScoreActionColumn(
-                label = "BRANCO",
-                score = placarBranco,
-                buttonColor = Color(0xFF4B0082),
-                onGol = onGolBranco,
+                label = "VERMELHO",
+                score = placarVermelho,
+                buttonColor = Color(0xFFC62828),
+                onGol = onGolVermelho,
                 modifier = Modifier.weight(1f)
             )
 
@@ -90,12 +90,12 @@ fun PlacarComponent(
                 }
             }
 
-            // LADO VERMELHO
+            // LADO BRANCO (Invertido para alinhar com o card lateral)
             ScoreActionColumn(
-                label = "VERMELHO",
-                score = placarVermelho,
-                buttonColor = Color(0xFFC62828),
-                onGol = onGolVermelho,
+                label = "BRANCO",
+                score = placarBranco,
+                buttonColor = Color(0xFF4B0082),
+                onGol = onGolBranco,
                 modifier = Modifier.weight(1f)
             )
         }

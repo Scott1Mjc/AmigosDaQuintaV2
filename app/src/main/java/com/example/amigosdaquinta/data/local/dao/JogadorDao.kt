@@ -6,75 +6,49 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * Interface de acesso a dados para a entidade Jogador.
- *
- * Implementa as operações fundamentais de persistência e consulta para os atletas
- * do sistema Amigos da Quinta.
  */
 @Dao
 interface JogadorDao {
 
-    /**
-     * Retorna um fluxo reativo de todos os jogadores ativos.
-     * Ordenados pelo número da camisa de forma crescente.
-     */
     @Query("SELECT * FROM jogadores WHERE ativo = 1 ORDER BY numeroCamisa ASC")
     fun obterTodosAtivos(): Flow<List<Jogador>>
 
-    /**
-     * Retorna um fluxo reativo de todos os jogadores (ativos e inativos).
-     * Ordenados alfabeticamente pelo nome.
-     */
     @Query("SELECT * FROM jogadores ORDER BY nome ASC")
     fun obterTodos(): Flow<List<Jogador>>
 
     /**
-     * Busca jogadores ativos cujo nome contenha o termo pesquisado.
-     *
-     * @param nome Termo para pesquisa.
+     * Busca jogadores ativos por nome ou número da camisa (Exato para número).
      */
-    @Query("SELECT * FROM jogadores WHERE nome LIKE '%' || :nome || '%' AND ativo = 1")
-    fun buscarPorNome(nome: String): Flow<List<Jogador>>
+    @Query("SELECT * FROM jogadores WHERE (nome LIKE '%' || :query || '%' OR CAST(numeroCamisa AS TEXT) = :query) AND ativo = 1")
+    fun buscarJogadores(query: String): Flow<List<Jogador>>
 
-    /**
-     * Retorna a lista de goleiros ativos.
-     */
     @Query("SELECT * FROM jogadores WHERE isPosicaoGoleiro = 1 AND ativo = 1")
     fun obterGoleiros(): Flow<List<Jogador>>
 
-    /**
-     * Busca um jogador específico pelo seu ID.
-     */
     @Query("SELECT * FROM jogadores WHERE id = :id")
     suspend fun obterPorId(id: Long): Jogador?
 
-    /**
-     * Busca uma lista de jogadores pelos seus IDs.
-     */
     @Query("SELECT * FROM jogadores WHERE id IN (:ids)")
     suspend fun obterPorIds(ids: List<Long>): List<Jogador>
 
-    /**
-     * Retorna o total de jogadores ativos cadastrados.
-     */
     @Query("SELECT COUNT(*) FROM jogadores WHERE ativo = 1")
     suspend fun contarAtivos(): Int
 
-    /**
-     * Insere ou atualiza um jogador.
-     */
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Query("SELECT * FROM jogadores WHERE numeroCamisa = :numero LIMIT 1")
+    suspend fun obterPorNumeroCamisa(numero: Int): Jogador?
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun inserir(jogador: Jogador): Long
 
-    /**
-     * Atualiza os dados de um jogador existente.
-     */
     @Update
     suspend fun atualizar(jogador: Jogador)
 
-    /**
-     * Marca um jogador como inativo (exclusão lógica).
-     * Mantém o registro no banco para integridade do histórico de partidas.
-     */
     @Query("UPDATE jogadores SET ativo = 0 WHERE id = :id")
     suspend fun marcarComoInativo(id: Long)
+
+    @Query("UPDATE jogadores SET estaEmCampo = :emCampo WHERE id = :id")
+    suspend fun atualizarStatusCampo(id: Long, emCampo: Boolean)
+
+    @Query("UPDATE jogadores SET estaEmCampo = :emCampo WHERE id IN (:ids)")
+    suspend fun atualizarStatusCampoMuitos(ids: List<Long>, emCampo: Boolean)
 }

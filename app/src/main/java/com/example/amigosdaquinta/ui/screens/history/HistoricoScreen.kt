@@ -2,8 +2,9 @@ package com.example.amigosdaquinta.ui.screens.history
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -54,28 +55,35 @@ fun HistoricoScreen(
         },
         containerColor = Color(0xFFF8F9FA)
     ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 8.dp)
-        ) {
-            HistoricoHeader()
+        BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(padding)) {
+            val isTablet = maxWidth > 600.dp
+            val columns = if (isTablet) 2 else 1
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Column(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                HistoricoHeader()
 
-            if (jogos.isEmpty()) {
-                EmptyHistoricoState()
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(bottom = 16.dp)
-                ) {
-                    items(jogos) { jogo ->
-                        JogoHistoricoItem(
-                            jogo = jogo,
-                            dateFormat = dateFormat,
-                            timeFormat = timeFormat,
-                            onClick = { onJogoClick(jogo.id) }
-                        )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (jogos.isEmpty()) {
+                    EmptyHistoricoState()
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(columns),
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(bottom = 16.dp)
+                    ) {
+                        items(jogos) { jogo ->
+                            JogoHistoricoItem(
+                                jogo = jogo,
+                                dateFormat = dateFormat,
+                                timeFormat = timeFormat,
+                                onClick = { onJogoClick(jogo.id) }
+                            )
+                        }
                     }
                 }
             }

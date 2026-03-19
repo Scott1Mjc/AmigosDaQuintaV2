@@ -13,14 +13,16 @@ import androidx.compose.ui.unit.dp
 /**
  * Diálogo para cadastro de um novo atleta no sistema.
  *
- * Realiza validações de campo para garantir que o nome não esteja vazio e o número
- * da camisa esteja no intervalo permitido (0-999).
+ * Realiza validações de campo para garantir que o nome não esteja vazio, o número
+ * da camisa esteja no intervalo permitido (0-999) e seja único.
  *
+ * @param numerosExistentes Lista de números de camisa já cadastrados para validação de unicidade.
  * @param onDismiss Callback para fechar o diálogo sem salvar.
  * @param onConfirm Callback que retorna os dados validados (nome, número, éGoleiro).
  */
 @Composable
 fun AdicionarJogadorDialog(
+    numerosExistentes: List<Int> = emptyList(),
     onDismiss: () -> Unit,
     onConfirm: (nome: String, numero: Int, isGoleiro: Boolean) -> Unit
 ) {
@@ -29,6 +31,7 @@ fun AdicionarJogadorDialog(
     var isGoleiro by remember { mutableStateOf(false) }
     var erroNome by remember { mutableStateOf(false) }
     var erroNumero by remember { mutableStateOf(false) }
+    var numeroEmUso by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -51,22 +54,33 @@ fun AdicionarJogadorDialog(
                     shape = MaterialTheme.shapes.medium
                 )
 
-                OutlinedTextField(
-                    value = numero,
-                    onValueChange = { input ->
-                        val filtered = input.filter { it.isDigit() }.take(3)
-                        numero = filtered
-                        val num = filtered.toIntOrNull()
-                        erroNumero = num == null || num !in 0..999
-                    },
-                    label = { Text("Nº da Camisa") },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    isError = erroNumero,
-                    placeholder = { Text("0-999") },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.medium
-                )
+                Column {
+                    OutlinedTextField(
+                        value = numero,
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() }.take(3)
+                            numero = filtered
+                            val num = filtered.toIntOrNull()
+                            erroNumero = num == null || num !in 0..999
+                            numeroEmUso = num != null && numerosExistentes.contains(num)
+                        },
+                        label = { Text("Nº da Camisa") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = erroNumero || numeroEmUso,
+                        placeholder = { Text("0-999") },
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.medium
+                    )
+                    if (numeroEmUso) {
+                        Text(
+                            text = "Este número já está em uso",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(start = 16.dp, top = 4.dp)
+                        )
+                    }
+                }
 
                 Column {
                     Text("Posição", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
@@ -95,11 +109,11 @@ fun AdicionarJogadorDialog(
             Button(
                 onClick = {
                     val num = numero.toIntOrNull()
-                    if (nome.isNotBlank() && num != null) {
+                    if (nome.isNotBlank() && num != null && !numeroEmUso) {
                         onConfirm(nome.trim(), num, isGoleiro)
                     }
                 },
-                enabled = nome.isNotBlank() && !erroNumero && numero.isNotEmpty(),
+                enabled = nome.isNotBlank() && !erroNumero && !numeroEmUso && numero.isNotEmpty(),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4B0082))
             ) {
                 Text("CADASTRAR", fontWeight = FontWeight.Bold)

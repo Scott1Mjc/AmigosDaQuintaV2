@@ -58,6 +58,8 @@ class SessaoViewModel(
     private val _duracaoJogoAtualMinutos = MutableStateFlow(30)
     val duracaoJogoAtualMinutos: StateFlow<Int> = _duracaoJogoAtualMinutos.asStateFlow()
 
+    private var timeIncumbente: TimeColor? = null
+
     private val _jogadoresSubstituidosIds = MutableStateFlow<Set<Long>>(emptySet())
     val jogadoresSubstituidosIds: StateFlow<Set<Long>> = _jogadoresSubstituidosIds.asStateFlow()
 
@@ -77,6 +79,7 @@ class SessaoViewModel(
                     _placarBranco.value = jogoEmAndamento.placarBranco
                     _placarVermelho.value = jogoEmAndamento.placarVermelho
                     _numeroDoProximoJogo.value = jogoEmAndamento.numeroJogo
+                    _duracaoJogoAtualMinutos.value = jogoEmAndamento.duracao
 
                     val participacoes = participacaoRepository.obterPorJogo(jogoEmAndamento.id)
                     val idsBranco = participacoes.filter { it.time == TimeColor.BRANCO }.map { it.jogadorId }
@@ -88,7 +91,11 @@ class SessaoViewModel(
                     _jogadoresSubstituidosIds.value = participacoes.filter { it.foiSubstituido }.map { it.jogadorId }.toSet()
                     _jogadoresQueEntraramSubstitutosIds.value = participacoes.filter { it.entrouComoSubstituto }.map { it.jogadorId }.toSet()
                     
-                    atualizarDuracaoJogo()
+                    if (jogoEmAndamento.duracao == 15) {
+                        _jogosConsecutivosTimeAtual.value = 1
+                    } else {
+                        _jogosConsecutivosTimeAtual.value = 0
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Erro ao restaurar sessão: ${e.message}")
@@ -97,14 +104,12 @@ class SessaoViewModel(
     }
 
     private fun atualizarDuracaoJogo() {
-        _duracaoJogoAtualMinutos.value = if (_numeroDoProximoJogo.value == 1) 30 else 15
+        _duracaoJogoAtualMinutos.value = if (_jogosConsecutivosTimeAtual.value == 1) 15 else 30
     }
 
     fun substituirJogador(jogadorSaindo: Jogador, jogadorEntrando: Jogador, time: TimeColor, isLesionado: Boolean = false) {
         viewModelScope.launch {
             try {
-                // Ao substituir, MANTEMOS o jogador saindo na lista, mas ele será marcado como substituído via ID.
-                // Apenas adicionamos o novo se ele já não estiver lá.
                 when (time) {
                     TimeColor.BRANCO -> {
                         if (!_timeBrancoAtual.value.any { it.id == jogadorEntrando.id }) {
@@ -121,13 +126,16 @@ class SessaoViewModel(
                 _jogadoresSubstituidosIds.value = _jogadoresSubstituidosIds.value + jogadorSaindo.id
                 _jogadoresQueEntraramSubstitutosIds.value = _jogadoresQueEntraramSubstitutosIds.value + jogadorEntrando.id
                 
-                adicionarAListaPresenca(jogadorEntrando)
-
                 if (isLesionado) {
                     removerDaListaPresenca(jogadorSaindo.id)
                 } else {
                     rotacionarJogadores(listOf(jogadorSaindo))
                 }
+
+                moverParaTopoDaFila(jogadorEntrando)
+                
+                jogadorRepository.atualizarStatusCampo(jogadorEntrando.id, true)
+                jogadorRepository.atualizarStatusCampo(jogadorSaindo.id, false)
 
                 _jogoAtualId.value?.let { jogoId ->
                     participacaoRepository.marcarComoSubstituido(jogoId, jogadorSaindo.id)
@@ -173,6 +181,18 @@ class SessaoViewModel(
         _listaPresenca.value = currentList
     }
 
+    private fun moverParaTopoDaFila(jogador: Jogador) {
+        val currentList = _listaPresenca.value.toMutableList()
+        val index = currentList.indexOfFirst { it.first.id == jogador.id }
+        if (index != -1) {
+            val item = currentList.removeAt(index)
+            currentList.add(0, item.first to 0L)
+        } else {
+            currentList.add(0, jogador to 0L)
+        }
+        _listaPresenca.value = currentList
+    }
+
     fun removerDaListaPresenca(jogadorId: Long) {
         _listaPresenca.value = _listaPresenca.value.filter { it.first.id != jogadorId }
     }
@@ -180,8 +200,35 @@ class SessaoViewModel(
     fun criarJogo(timeBranco: List<Jogador>, timeVermelho: List<Jogador>) {
         viewModelScope.launch {
             try {
+                timeIncumbente = when {
+                    _timeBrancoAtual.value.isNotEmpty() && _timeVermelhoAtual.value.isEmpty() -> TimeColor.BRANCO
+                    _timeVermelhoAtual.value.isNotEmpty() && _timeBrancoAtual.value.isEmpty() -> TimeColor.VERMELHO
+                    else -> null
+                }
+
                 timeBranco.forEach { adicionarAListaPresenca(it) }
                 timeVermelho.forEach { adicionarAListaPresenca(it) }
+
+                // REORDENAÇÃO DA FILA: Skipped players movem para depois dos jogadores em campo
+                val todosNoJogoIds = (timeBranco + timeVermelho).map { it.id }.toSet()
+                val currentPresenca = _listaPresenca.value.sortedBy { it.second }
+                val updatedPresenca = mutableListOf<Pair<Jogador, Long>>()
+                
+                val jogadoresNoJogo = currentPresenca.filter { it.first.id in todosNoJogoIds }
+                val jogadoresEsperando = currentPresenca.filter { it.first.id !in todosNoJogoIds }
+
+                // Jogadores em campo ficam com timestamps antigos (0, 1, 2...) para manter 1-22
+                jogadoresNoJogo.forEachIndexed { index, pair ->
+                    updatedPresenca.add(pair.first to index.toLong())
+                }
+
+                // Jogadores esperando ficam com timestamps a partir de AGORA, preservando ordem relativa
+                val baseTime = System.currentTimeMillis()
+                jogadoresEsperando.forEachIndexed { index, pair ->
+                    updatedPresenca.add(pair.first to (baseTime + index))
+                }
+
+                _listaPresenca.value = updatedPresenca
 
                 val numeroJogo = _numeroDoProximoJogo.value
                 atualizarDuracaoJogo()
@@ -202,6 +249,9 @@ class SessaoViewModel(
                 timeBranco.forEach { participacoes.add(Participacao(jogadorId = it.id, jogoId = jogoId, time = TimeColor.BRANCO)) }
                 timeVermelho.forEach { participacoes.add(Participacao(jogadorId = it.id, jogoId = jogoId, time = TimeColor.VERMELHO)) }
                 jogoRepository.adicionarParticipacoes(participacoes)
+                
+                val todosIds = (timeBranco + timeVermelho).map { it.id }
+                jogadorRepository.atualizarStatusCampoMuitos(todosIds, true)
 
                 _timeBrancoAtual.value = timeBranco
                 _timeVermelhoAtual.value = timeVermelho
@@ -227,7 +277,12 @@ class SessaoViewModel(
 
                 when (vencedor) {
                     TimeColor.BRANCO -> {
-                        _jogosConsecutivosTimeAtual.value++
+                        if (timeIncumbente == TimeColor.BRANCO) {
+                            _jogosConsecutivosTimeAtual.value++
+                        } else {
+                            _jogosConsecutivosTimeAtual.value = 1
+                        }
+
                         jogadoresQueSairaoAgora.addAll(ativosVermelho)
                         if (_jogosConsecutivosTimeAtual.value >= 2) {
                             jogadoresQueSairaoAgora.addAll(ativosBranco)
@@ -235,8 +290,17 @@ class SessaoViewModel(
                         }
                     }
                     TimeColor.VERMELHO -> {
+                        if (timeIncumbente == TimeColor.VERMELHO) {
+                            _jogosConsecutivosTimeAtual.value++
+                        } else {
+                            _jogosConsecutivosTimeAtual.value = 1
+                        }
+
                         jogadoresQueSairaoAgora.addAll(ativosBranco)
-                        _jogosConsecutivosTimeAtual.value = 1
+                        if (_jogosConsecutivosTimeAtual.value >= 2) {
+                            jogadoresQueSairaoAgora.addAll(ativosVermelho)
+                            _jogosConsecutivosTimeAtual.value = 0
+                        }
                     }
                     null -> {
                         jogadoresQueSairaoAgora.addAll(ativosBranco)
@@ -244,23 +308,25 @@ class SessaoViewModel(
                         _jogosConsecutivosTimeAtual.value = 0
                     }
                 }
+                
+                jogadorRepository.atualizarStatusCampoMuitos(jogadoresQueSairaoAgora.map { it.id }, false)
 
                 rotacionarJogadores(jogadoresQueSairaoAgora.distinctBy { it.id })
                 _numeroDoProximoJogo.value++
-                atualizarDuracaoJogo()
                 
+                atualizarDuracaoJogo()
                 _jogoAtualId.value = null
                 
                 val quemFica = when (vencedor) {
-                    TimeColor.BRANCO -> if (_jogosConsecutivosTimeAtual.value > 0) ativosBranco else emptyList()
-                    TimeColor.VERMELHO -> ativosVermelho
+                    TimeColor.BRANCO -> if (_jogosConsecutivosTimeAtual.value == 1) ativosBranco else emptyList()
+                    TimeColor.VERMELHO -> if (_jogosConsecutivosTimeAtual.value == 1) ativosVermelho else emptyList()
                     null -> emptyList()
                 }
                 
-                if (vencedor == TimeColor.BRANCO && _jogosConsecutivosTimeAtual.value > 0) {
+                if (vencedor == TimeColor.BRANCO && _jogosConsecutivosTimeAtual.value == 1) {
                     _timeBrancoAtual.value = quemFica
                     _timeVermelhoAtual.value = emptyList()
-                } else if (vencedor == TimeColor.VERMELHO) {
+                } else if (vencedor == TimeColor.VERMELHO && _jogosConsecutivosTimeAtual.value == 1) {
                     _timeVermelhoAtual.value = quemFica
                     _timeBrancoAtual.value = emptyList()
                 } else {
@@ -270,6 +336,7 @@ class SessaoViewModel(
 
                 _jogadoresSubstituidosIds.value = emptySet()
                 _jogadoresQueEntraramSubstitutosIds.value = emptySet()
+                timeIncumbente = null
             } catch (e: Exception) {
                 Log.e(TAG, "Erro ao finalizar jogo: ${e.message}")
             }
@@ -287,19 +354,30 @@ class SessaoViewModel(
     }
 
     fun limparJogoAtual() {
-        _jogoAtualId.value = null
-        _timeBrancoAtual.value = emptyList()
-        _timeVermelhoAtual.value = emptyList()
-        _placarBranco.value = 0
-        _placarVermelho.value = 0
-        _jogadoresSubstituidosIds.value = emptySet()
-        _jogadoresQueEntraramSubstitutosIds.value = emptySet()
+        viewModelScope.launch {
+            val todosNoCampo = _timeBrancoAtual.value + _timeVermelhoAtual.value
+            jogadorRepository.atualizarStatusCampoMuitos(todosNoCampo.map { it.id }, false)
+            
+            _jogoAtualId.value = null
+            _timeBrancoAtual.value = emptyList()
+            _timeVermelhoAtual.value = emptyList()
+            _placarBranco.value = 0
+            _placarVermelho.value = 0
+            _jogadoresSubstituidosIds.value = emptySet()
+            _jogadoresQueEntraramSubstitutosIds.value = emptySet()
+            timeIncumbente = null
+        }
     }
 
     fun iniciarNovoDia() {
-        _listaPresenca.value = emptyList()
-        _numeroDoProximoJogo.value = 1
-        _jogosConsecutivosTimeAtual.value = 0
-        limparJogoAtual()
+        viewModelScope.launch {
+            jogadorRepository.obterTodosAtivos().collect { lista ->
+                jogadorRepository.atualizarStatusCampoMuitos(lista.map { it.id }, false)
+            }
+            _listaPresenca.value = emptyList()
+            _numeroDoProximoJogo.value = 1
+            _jogosConsecutivosTimeAtual.value = 0
+            limparJogoAtual()
+        }
     }
 }
