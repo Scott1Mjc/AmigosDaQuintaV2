@@ -244,8 +244,8 @@ private fun FilaEsperaLateral(
     Surface(modifier = modifier.fillMaxHeight(), shape = MaterialTheme.shapes.medium, color = Color(0xFFEBE8EC)) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
-                text = if (modoRapido || searchQuery.isBlank()) "Fila de Presença" else "Busca", 
-                style = MaterialTheme.typography.titleMedium, 
+                text = if (modoRapido || searchQuery.isBlank()) "Fila de Presença" else "Busca",
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -278,7 +278,7 @@ private fun FilaEsperaLateral(
                 colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color.White, unfocusedContainerColor = Color.White)
             )
             Spacer(modifier = Modifier.height(12.dp))
-            
+
             if (isLoading && jogadores.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(24.dp)) }
             } else {
@@ -289,7 +289,7 @@ private fun FilaEsperaLateral(
                         val foiSubstituido = substituidoresIds.contains(jogador.id)
                         val jaEscalado = timeBranco.any { it.id == jogador.id } || timeVermelho.any { it.id == jogador.id }
                         val ordem = if (jaConfirmado) presencaOrdenada.indexOfFirst { it.first.id == jogador.id } + 1 else null
-                        
+
                         ItemFilaJogo(jogador, jaConfirmado, jaEscalado, foiSubstituido, ordem, onTogglePresenca)
                     }
                 }
@@ -300,11 +300,11 @@ private fun FilaEsperaLateral(
 
 @Composable
 private fun ItemFilaJogo(
-    jogador: Jogador, 
-    confirmado: Boolean, 
-    jaEscalado: Boolean, 
-    substituido: Boolean, 
-    ordem: Int?, 
+    jogador: Jogador,
+    confirmado: Boolean,
+    jaEscalado: Boolean,
+    substituido: Boolean,
+    ordem: Int?,
     onToggle: (Jogador, Boolean) -> Unit
 ) {
     val isGrayedOut = jaEscalado || substituido
@@ -318,9 +318,9 @@ private fun ItemFilaJogo(
     ) {
         Row(modifier = Modifier.padding(6.dp), verticalAlignment = Alignment.CenterVertically) {
             Checkbox(
-                checked = confirmado, 
-                onCheckedChange = { onToggle(jogador, confirmado) }, 
-                enabled = !substituido && !jaEscalado, 
+                checked = confirmado,
+                onCheckedChange = { onToggle(jogador, confirmado) },
+                enabled = !substituido && !jaEscalado,
                 modifier = Modifier.size(28.dp)
             )
             Text(
@@ -332,9 +332,9 @@ private fun ItemFilaJogo(
             )
             Column(modifier = Modifier.weight(1f).padding(horizontal = 4.dp)) {
                 Text(
-                    text = jogador.nome, 
-                    style = MaterialTheme.typography.bodySmall, 
-                    fontWeight = FontWeight.Bold, 
+                    text = jogador.nome,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold,
                     color = if (jaEscalado) Color.Gray else Color.Black,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -348,13 +348,13 @@ private fun ItemFilaJogo(
                 Text(statusText, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
             }
             Surface(
-                shape = MaterialTheme.shapes.small, 
+                shape = MaterialTheme.shapes.small,
                 color = if (isGrayedOut) Color(0xFF616161) else Color(0xFFF0EDFF)
             ) {
                 Text(
-                    text = "#${jogador.numeroCamisa}", 
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), 
-                    style = MaterialTheme.typography.labelSmall, 
+                    text = "#${jogador.numeroCamisa}",
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                    style = MaterialTheme.typography.labelSmall,
                     color = if (isGrayedOut) Color.White else Color(0xFF4B0082)
                 )
             }
@@ -382,9 +382,9 @@ private fun EscalacaoAtivaCard(titulo: String, jogadores: List<Jogador>, contain
                         Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             val txt = (if (jog.isPosicaoGoleiro) "[GOL] " else "") + (if (e && !s) "(E) " else "") + jog.nome + (if (s) " (S)" else "")
                             Text(
-                                text = txt, 
-                                style = MaterialTheme.typography.bodySmall, 
-                                modifier = Modifier.weight(1f), 
+                                text = txt,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.weight(1f),
                                 color = if (s) Color.White else Color.Black,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis

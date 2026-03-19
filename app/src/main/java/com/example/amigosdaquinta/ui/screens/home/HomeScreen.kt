@@ -55,9 +55,12 @@ fun HomeScreen(
         showExitDialog = true
     }
 
-    // Dispara a busca no banco apenas quando o texto muda
+    // Dispara a busca no banco com debounce
     LaunchedEffect(searchQuery) {
-        viewModel.buscarPorNome(searchQuery)
+        if (searchQuery.isNotBlank()) {
+            kotlinx.coroutines.delay(300) // Aguarda 300ms antes de buscar
+            viewModel.buscarPorNome(searchQuery)
+        }
     }
 
     // Lógica de exibição refinada
@@ -67,12 +70,19 @@ fun HomeScreen(
                 // Modo rápido ou sem busca: mostra fila de presença
                 listaPresenca.sortedBy { it.second }.map { it.first }
             } else {
-                // Modo busca: resultados do banco
+                // Modo busca: filtra localmente primeiro, depois usa banco
                 val presentesIds = listaPresenca.map { it.first.id }.toSet()
-                jogadoresBanco.sortedWith(
-                    compareByDescending<Jogador> { presentesIds.contains(it.id) }
-                        .thenByDescending { it.numeroCamisa }
-                )
+                val todosJogadores = (listaPresenca.map { it.first } + jogadoresBanco).distinctBy { it.id }
+
+                todosJogadores
+                    .filter { jogador ->
+                        jogador.nome.contains(searchQuery, ignoreCase = true) ||
+                                jogador.numeroCamisa.toString().contains(searchQuery)
+                    }
+                    .sortedWith(
+                        compareByDescending<Jogador> { presentesIds.contains(it.id) }
+                            .thenBy { it.nome }
+                    )
             }
         }
     }
