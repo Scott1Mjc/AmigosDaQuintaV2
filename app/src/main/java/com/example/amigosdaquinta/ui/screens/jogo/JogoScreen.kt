@@ -187,11 +187,12 @@ fun JogoScreen(
     // Dialogs
     if (showSubDialog && jogadorParaSubstituir != null) {
         val presentesIds = listaPresenca.map { it.first.id }.toSet()
-        val jogadoresPresentesDisponiveis = jogadoresBanco.filter { j -> 
-            presentesIds.contains(j.id) && 
-            !timeBranco.any { it.id == j.id } && 
-            !timeVermelho.any { it.id == j.id } 
-        }
+        val jogadoresPresentesDisponiveis = listaPresenca
+            .map { it.first } // Pega os jogadores da lista de presença
+            .filter { jogador ->
+                !timeBranco.any { it.id == jogador.id } &&
+                        !timeVermelho.any { it.id == jogador.id }
+            }
 
         SubstituicaoDialog(
             jogadorSaindo = jogadorParaSubstituir!!.first,
