@@ -75,13 +75,16 @@ class SessaoViewModel(
 
     private var timerJob: Job? = null
     
-    private var timeIncumbente: TimeColor? = null
+    private var timeGanhadorUltimoJogo: TimeColor? = null
 
     private val _jogadoresSubstituidosIds = MutableStateFlow<Set<Long>>(emptySet())
     val jogadoresSubstituidosIds: StateFlow<Set<Long>> = _jogadoresSubstituidosIds.asStateFlow()
 
     private val _jogadoresQueEntraramSubstitutosIds = MutableStateFlow<Set<Long>>(emptySet())
     val jogadoresQueEntraramSubstitutosIds: StateFlow<Set<Long>> = _jogadoresQueEntraramSubstitutosIds.asStateFlow()
+
+    private val _jogadoresUltimoJogoIds = MutableStateFlow<Set<Long>>(emptySet())
+    val jogadoresUltimoJogoIds: StateFlow<Set<Long>> = _jogadoresUltimoJogoIds.asStateFlow()
 
     init {
         restaurarSessaoSeExistir()
@@ -134,6 +137,7 @@ class SessaoViewModel(
 
                     _jogadoresSubstituidosIds.value = participacoes.filter { it.foiSubstituido }.map { it.jogadorId }.toSet()
                     _jogadoresQueEntraramSubstitutosIds.value = participacoes.filter { it.entrouComoSubstituto }.map { it.jogadorId }.toSet()
+                    _jogadoresUltimoJogoIds.value = participacoes.map { it.jogadorId }.toSet()
 
                     val presencas = presencaRepository.obterPresencasOrdenadas()
                     _listaPresenca.value = presencas.map { Pair(it.jogador, it.horarioChegada) }
@@ -147,12 +151,6 @@ class SessaoViewModel(
     fun criarJogo(timeBranco: List<Jogador>, timeVermelho: List<Jogador>) {
         viewModelScope.launch {
             try {
-                timeIncumbente = when {
-                    _timeBrancoAtual.value.isNotEmpty() && _timeVermelhoAtual.value.isEmpty() -> TimeColor.BRANCO
-                    _timeVermelhoAtual.value.isNotEmpty() && _timeBrancoAtual.value.isEmpty() -> TimeColor.VERMELHO
-                    else -> null
-                }
-
                 val numeroJogo = _numeroDoProximoJogo.value
                 val duracao = if (numeroJogo == 1) 30 else 15
                 _duracaoJogoAtualMinutos.value = duracao
@@ -194,6 +192,7 @@ class SessaoViewModel(
                 _timerPausado.value = true
                 jogoRepository.finalizarJogo(jogoId, _placarBranco.value, _placarVermelho.value, vencedor)
                 _temJogoAtivo.value = false
+                timeGanhadorUltimoJogo = vencedor
             } catch (e: Exception) {
                 Log.e(TAG, "Erro ao finalizar jogo: ${e.message}")
             }
@@ -203,38 +202,42 @@ class SessaoViewModel(
     fun prepararProximaPartida(vencedor: TimeColor?) {
         viewModelScope.launch {
             try {
-                val numJogoAtual = _numeroDoProximoJogo.value
                 _numeroDoProximoJogo.value++
+                
+                // Salva quem jogou para a rotação
+                val jogadoresQueJogaram = (_timeBrancoAtual.value + _timeVermelhoAtual.value).map { it.id }.toSet()
+                _jogadoresUltimoJogoIds.value = jogadoresQueJogaram
 
                 val ativosBranco = _timeBrancoAtual.value.filter { j -> !_jogadoresSubstituidosIds.value.contains(j.id) }
                 val ativosVermelho = _timeVermelhoAtual.value.filter { j -> !_jogadoresSubstituidosIds.value.contains(j.id) }
 
                 if (vencedor == null) {
                     _jogosConsecutivosTimeAtual.value = 0
-                } else {
-                    _jogosConsecutivosTimeAtual.value = 1
-                }
-
-                val quemFica: List<Jogador>
-                if (numJogoAtual == 1) {
-                    quemFica = if (vencedor == TimeColor.BRANCO) ativosBranco else ativosVermelho
-                } else {
-                    quemFica = if (timeIncumbente == TimeColor.BRANCO) ativosVermelho else ativosBranco
-                }
-                
-                jogadorRepository.atualizarStatusCampoMuitos((_timeBrancoAtual.value + _timeVermelhoAtual.value).map { it.id }, false)
-
-                if (quemFica == ativosBranco) {
-                    _timeBrancoAtual.value = ativosBranco
+                    // No empate, ambos saem (regra da pelada) ou um é escolhido.
+                    // Se não houver vencedor, limpamos ambos para a FormacaoAutomatica decidir.
+                    _timeBrancoAtual.value = emptyList()
                     _timeVermelhoAtual.value = emptyList()
                 } else {
-                    _timeVermelhoAtual.value = ativosVermelho
-                    _timeBrancoAtual.value = emptyList()
+                    // Se o mesmo time ganhou de novo, incrementa. Se foi o desafiante, reseta para 1.
+                    if (vencedor == timeGanhadorUltimoJogo) {
+                        _jogosConsecutivosTimeAtual.value++
+                    } else {
+                        _jogosConsecutivosTimeAtual.value = 1
+                    }
+
+                    if (vencedor == TimeColor.BRANCO) {
+                        _timeBrancoAtual.value = ativosBranco
+                        _timeVermelhoAtual.value = emptyList()
+                    } else {
+                        _timeVermelhoAtual.value = ativosVermelho
+                        _timeBrancoAtual.value = emptyList()
+                    }
                 }
+                
+                jogadorRepository.atualizarStatusCampoMuitos(jogadoresQueJogaram.toList(), false)
 
                 _jogadoresSubstituidosIds.value = emptySet()
                 _jogadoresQueEntraramSubstitutosIds.value = emptySet()
-                timeIncumbente = null
             } catch (e: Exception) {
                 Log.e(TAG, "Erro ao preparar próxima partida: ${e.message}")
             }
@@ -316,6 +319,8 @@ class SessaoViewModel(
             _timerPausado.value = true
             _duracaoJogoAtualMinutos.value = 30
             _tempoRestanteSegundos.value = 30 * 60
+            _jogadoresUltimoJogoIds.value = emptySet()
+            timeGanhadorUltimoJogo = null
         }
     }
 

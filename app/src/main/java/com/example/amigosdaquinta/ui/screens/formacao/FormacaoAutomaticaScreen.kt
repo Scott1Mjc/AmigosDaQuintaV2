@@ -20,6 +20,9 @@ import com.example.amigosdaquinta.viewmodel.SessaoViewModel
  * 
  * Implementa a regra de negócio de integridade de times:
  * Se um jogador sai, o substituto é buscado no banco APÓS o próximo time formado.
+ * 
+ * Correção de Rotação: Jogadores que participaram da última partida são movidos para o fim da fila
+ * de prioridade para a próxima formação, mantendo a ordem de chegada relativa entre eles.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,19 +36,31 @@ fun FormacaoAutomaticaScreen(
 ) {
     val numeroJogo by sessaoViewModel.numeroDoProximoJogo.collectAsStateWithLifecycle()
     val jogosConsecutivos by sessaoViewModel.jogosConsecutivosTimeAtual.collectAsStateWithLifecycle()
+    val jogadoresUltimoJogoIds by sessaoViewModel.jogadoresUltimoJogoIds.collectAsStateWithLifecycle()
 
-    // ✅ Lógica de Formação com Inteligência de Integridade
-    val (timeBranco, timeVermelho) = remember(filaEspera, jogadoresTimeGanhador, timeGanhador, jogosConsecutivos) {
+    // ✅ Lógica de Formação com Inteligência de Integridade e Rotação
+    val (timeBranco, timeVermelho) = remember(filaEspera, jogadoresTimeGanhador, timeGanhador, jogosConsecutivos, jogadoresUltimoJogoIds) {
         val todosFila = filaEspera.map { it.first }.sortedBy { jog -> 
             filaEspera.find { it.first.id == jog.id }?.second ?: 0L 
         }
+
+        // Função auxiliar para priorizar quem não jogou a última partida, mantendo a ordem de chegada relativa
+        fun sortDisponiveis(lista: List<Jogador>): List<Jogador> {
+            return lista.sortedWith(
+                compareBy<Jogador> { it.id in jogadoresUltimoJogoIds }
+                    .thenBy { jog -> filaEspera.find { it.first.id == jog.id }?.second ?: 0L }
+            )
+        }
         
-        val eh1Jogo = jogadoresTimeGanhador.isEmpty()
+        val eh1Jogo = jogadoresTimeGanhador.isEmpty() && numeroJogo == 1
         val ambosSaem = (jogosConsecutivos ?: 0) >= 2 || (timeGanhador == null && !eh1Jogo)
 
         if (ambosSaem || eh1Jogo) {
-            val gols = todosFila.filter { it.isPosicaoGoleiro }
-            val linhas = todosFila.filter { !it.isPosicaoGoleiro }
+            // Se for o primeiro jogo, segue ordem de chegada pura. 
+            // Se ambos saem (empate ou limite de jogos), aplica a rotação na fila toda.
+            val todosOrdenados = if (eh1Jogo) todosFila else sortDisponiveis(todosFila)
+            val gols = todosOrdenados.filter { it.isPosicaoGoleiro }
+            val linhas = todosOrdenados.filter { !it.isPosicaoGoleiro }
             
             if (gols.size >= 2 && linhas.size >= 20) {
                 val t1L = linhas.take(10)
@@ -58,19 +73,19 @@ fun FormacaoAutomaticaScreen(
                 } else Pair(emptyList(), emptyList())
             }
         } else {
-            // Um time fica e o desafiante entra
+            // Um time fica (vencedor) e o desafiante entra (próximos da fila com rotação)
             val timeQueFica = jogadoresTimeGanhador.filter { jog -> todosFila.any { it.id == jog.id } }
             val idsTimeQueFica = timeQueFica.map { it.id }.toSet()
             
-            val disponiveis = todosFila.filter { it.id !in idsTimeQueFica }
+            val disponiveis = sortDisponiveis(todosFila.filter { it.id !in idsTimeQueFica })
             
-            // 1. Reserva o time desafiante (próximos 11 da fila)
+            // 1. Reserva o time desafiante (próximos 11 da fila com prioridade para quem não jogou)
             val desafianteGol = disponiveis.firstOrNull { it.isPosicaoGoleiro }
             val desafianteLinhas = disponiveis.filter { !it.isPosicaoGoleiro }.take(10)
             
             val idsDesafianteReservado = (desafianteLinhas.map { it.id } + (desafianteGol?.id ?: -1L)).toSet()
             
-            // 2. Preenche buracos no Time Que Fica usando quem sobrou APÓS o desafiante
+            // 2. Preenche buracos no Time Que Fica usando quem sobrou APÓS o desafiante ser montado
             val bancoAposDesafiante = disponiveis.filter { it.id !in idsDesafianteReservado }
             
             val timeQueFicaCompleto = timeQueFica.toMutableList()
@@ -107,7 +122,7 @@ fun FormacaoAutomaticaScreen(
             Surface(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, color = Color(0xFFEBE8EC)) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("${numeroJogo}º Jogo do Dia", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Escalação automática: Vencedor permanece e desafiantes entram seguindo a fila.", style = MaterialTheme.typography.bodySmall, color = Color.DarkGray)
+                    Text("Escalação automática: Vencedor permanece e desafiantes entram seguindo a fila rotativa.", style = MaterialTheme.typography.bodySmall, color = Color.DarkGray)
                 }
             }
 

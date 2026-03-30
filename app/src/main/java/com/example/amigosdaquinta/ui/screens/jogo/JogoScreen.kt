@@ -68,18 +68,10 @@ fun JogoScreen(
     }
 
     // ✅ REGRA: A lista lateral segue estritamente a ordem de chegada (FIFO)
-    val jogadoresExibidos by remember(listaPresenca, searchQuery) {
+    // Não filtra mais conforme o usuário digita.
+    val jogadoresExibidos by remember(listaPresenca) {
         derivedStateOf {
-            val baseList = listaPresenca.sortedBy { it.second }.map { it.first }
-            
-            if (searchQuery.isBlank()) {
-                baseList
-            } else {
-                baseList.filter { j -> 
-                    j.nome.contains(searchQuery, ignoreCase = true) || 
-                    j.numeroCamisa.toString().contains(searchQuery) 
-                }
-            }
+            listaPresenca.sortedBy { it.second }.map { it.first }
         }
     }
 
@@ -278,6 +270,7 @@ private fun FilaEsperaLateral(
                     Row {
                         if (searchQuery.isNotEmpty() && jogadoresResultados.isNotEmpty()) {
                             val primeiroJogador = jogadoresResultados.firstOrNull()
+                            // Permite adicionar se não estiver na lista de presença
                             if (primeiroJogador != null && !listaPresenca.any { it.first.id == primeiroJogador.id }) {
                                 IconButton(onClick = { onTogglePresenca(primeiroJogador, false); onSearchChange("") }) {
                                     Icon(Icons.AutoMirrored.Filled.ArrowForward, "Adicionar", tint = Color(0xFF4B0082))
@@ -295,7 +288,10 @@ private fun FilaEsperaLateral(
                 textStyle = MaterialTheme.typography.bodySmall
             )
             Spacer(modifier = Modifier.height(8.dp))
-            if (isLoading) {
+            
+            // ✅ REGRA: A lista sempre mostra quem já confirmou presença.
+            // Não deve ser filtrada enquanto o usuário digita.
+            if (isLoading && searchQuery.isNotEmpty()) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
             } else {
                 val listaTotalOrdenada = remember(listaPresenca) { listaPresenca.sortedBy { it.second }.map { it.first.id } }
@@ -411,5 +407,5 @@ fun EscalacaoAtivaCard(
 
 @Composable
 fun ConfirmarResultadoDialog(placarBranco: Int, placarVermelho: Int, isAutomatico: Boolean, onDismiss: () -> Unit, onConfirm: () -> Unit) {
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(if (isAutomatico) "Tempo Esgotado!" else "Encerrar Partida") }, text = { Text("Confirmar placar final: BRANCO $placarBranco x $placarVermelho VERMELHO?") }, confirmButton = { Button(onClick = onConfirm) { Text("CONFIRMAR") } }, dismissButton = { if (!isAutomatico) { TextButton(onClick = onDismiss) { Text("CANCELAR") } } })
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(if (isAutomatico) "Tempo Esgotado!" else "Encerrar Partida") }, text = { Text("Confirmar placar final: VERMELHO $placarVermelho x BRANCO $placarBranco?") }, confirmButton = { Button(onClick = onConfirm) { Text("CONFIRMAR") } }, dismissButton = { if (!isAutomatico) { TextButton(onClick = onDismiss) { Text("CANCELAR") } } })
 }

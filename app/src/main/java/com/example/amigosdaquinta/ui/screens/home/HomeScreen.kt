@@ -70,7 +70,7 @@ fun HomeScreen(
         }
     }
 
-    // ✅ REGRA: Ordem de chegada absoluta (FIFO)
+    // ✅ REGRA: Ordem de chegada absoluta (FIFO) - Não filtra por pesquisa
     val jogadoresExibidos by remember(listaPresenca) {
         derivedStateOf {
             listaPresenca
@@ -294,16 +294,18 @@ private fun FilaChegadaCard(
                 colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color.White, unfocusedContainerColor = Color.White)
             )
             Spacer(modifier = Modifier.height(16.dp))
-            if (isLoading) {
+            if (isLoading && searchQuery.isNotEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             } else {
-                val listaParaExibir = if (searchQuery.isBlank()) jogadores else jogadoresResultados
+                // ✅ REGRA: A lista sempre mostra quem já confirmou presença (Lista de Chegada)
+                // Ela não deve ser filtrada enquanto o usuário digita.
+                val listaParaExibir = jogadores
 
                 LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(items = listaParaExibir, key = { it.id }) { jogador ->
                         val indexOriginal = jogadores.indexOfFirst { it.id == jogador.id }
-                        val jaConfirmado = listaPresenca.any { it.first.id == jogador.id }
-                        val ordem = if (jaConfirmado && indexOriginal != -1) indexOriginal + 1 else null
+                        val jaConfirmado = true // Se está em 'jogadores', já está confirmado
+                        val ordem = if (indexOriginal != -1) indexOriginal + 1 else null
                         val noTime = timeBranco.any { it.id == jogador.id } || timeVermelho.any { it.id == jogador.id }
                         
                         // Lógica de barramento (Botões Cinzas)
