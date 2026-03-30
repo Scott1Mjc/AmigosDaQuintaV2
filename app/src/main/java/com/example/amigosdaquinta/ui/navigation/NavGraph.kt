@@ -17,6 +17,7 @@ import com.example.amigosdaquinta.ui.screens.home.HomeScreen
 import com.example.amigosdaquinta.ui.screens.jogadores.GerenciarJogadoresScreen
 import com.example.amigosdaquinta.ui.screens.jogo.JogoScreen
 import com.example.amigosdaquinta.ui.screens.jogo.ResultadoScreen
+import com.example.amigosdaquinta.ui.screens.jogo.JogadoresSairamDurantePartidaScreen
 import com.example.amigosdaquinta.viewmodel.HistoricoViewModel
 import com.example.amigosdaquinta.viewmodel.JogadoresViewModel
 import com.example.amigosdaquinta.viewmodel.SessaoViewModel
@@ -31,6 +32,7 @@ sealed class Screen(val route: String) {
     object Resultado : Screen("resultado/{vencedor}") {
         fun createRoute(vencedor: String) = "resultado/$vencedor"
     }
+    object JogadoresSairam : Screen("jogadores_sairam")
     object Historico : Screen("historico")
     object DetalhesJogo : Screen("detalhes_jogo/{jogoId}") {
         fun createRoute(jogoId: Long) = "detalhes_jogo/$jogoId"
@@ -65,10 +67,20 @@ fun NavGraph(
             HomeScreen(
                 viewModel = jogadoresViewModel,
                 sessaoViewModel = sessaoViewModel,
-                onNavigateToHistorico = { navController.navigate(Screen.Historico.route) },
-                onNavigateToGerenciarJogadores = { navController.navigate(Screen.GerenciarJogadores.route) },
+                onNavigateToHistorico = { 
+                    if (navController.currentDestination?.route == Screen.Home.route) {
+                        navController.navigate(Screen.Historico.route)
+                    }
+                },
+                onNavigateToGerenciarJogadores = { 
+                    if (navController.currentDestination?.route == Screen.Home.route) {
+                        navController.navigate(Screen.GerenciarJogadores.route)
+                    }
+                },
                 onNavigateToJogo = { 
-                    navController.navigate(Screen.Jogo.route) 
+                    if (navController.currentDestination?.route == Screen.Home.route) {
+                        navController.navigate(Screen.Jogo.route) 
+                    }
                 }
             )
         }
@@ -76,7 +88,12 @@ fun NavGraph(
         composable(Screen.GerenciarJogadores.route) {
             GerenciarJogadoresScreen(
                 viewModel = jogadoresViewModel,
-                onNavigateBack = { navController.popBackStack() }
+                sessaoViewModel = sessaoViewModel,
+                onNavigateBack = { 
+                    if (navController.currentDestination?.route == Screen.GerenciarJogadores.route) {
+                        navController.popBackStack(Screen.Home.route, false)
+                    }
+                }
             )
         }
 
@@ -94,13 +111,17 @@ fun NavGraph(
                 filaEspera = listaPresenca,
                 sessaoViewModel = sessaoViewModel,
                 onNavigateBack = {
-                    navController.navigate(Screen.Home.route) {
-                        popUpTo(Screen.Home.route) { inclusive = true }
+                    if (navController.currentDestination?.route == Screen.FormacaoAutomatica.route) {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Home.route) { inclusive = true }
+                        }
                     }
                 },
                 onIniciarJogo = {
-                    navController.navigate(Screen.Jogo.route) {
-                        popUpTo(Screen.Home.route)
+                    if (navController.currentDestination?.route == Screen.FormacaoAutomatica.route) {
+                        navController.navigate(Screen.Jogo.route) {
+                            popUpTo(Screen.Home.route)
+                        }
                     }
                 }
             )
@@ -112,15 +133,26 @@ fun NavGraph(
                 jogadoresViewModel = jogadoresViewModel,
                 timeBranco = timeBranco,
                 timeVermelho = timeVermelho,
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = { 
+                    if (navController.currentDestination?.route == Screen.Jogo.route) {
+                        navController.popBackStack()
+                    }
+                },
+                onNavigateToHome = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                    }
+                },
                 onFinalizarJogo = { vencedor ->
                     val vStr = when (vencedor) {
                         TimeColor.BRANCO -> "branco"
                         TimeColor.VERMELHO -> "vermelho"
                         null -> "empate"
                     }
-                    navController.navigate(Screen.Resultado.createRoute(vStr)) {
-                        popUpTo(Screen.Home.route)
+                    if (navController.currentDestination?.route == Screen.Jogo.route) {
+                        navController.navigate(Screen.Resultado.createRoute(vStr)) {
+                            popUpTo(Screen.Home.route)
+                        }
                     }
                 }
             )
@@ -139,15 +171,32 @@ fun NavGraph(
                 placarBranco = placarBranco,
                 placarVermelho = placarVermelho,
                 onProximoJogo = {
-                    navController.navigate(Screen.FormacaoAutomatica.route) {
-                        popUpTo(Screen.Home.route)
+                    if (navController.currentDestination?.route?.startsWith("resultado") == true) {
+                        sessaoViewModel.prepararProximaPartida(vencedor)
+                        navController.navigate(Screen.FormacaoAutomatica.route) {
+                            popUpTo(Screen.Home.route)
+                        }
                     }
                 },
+                onJogadoresSairam = {
+                    navController.navigate(Screen.JogadoresSairam.route)
+                },
                 onEncerrar = {
-                    sessaoViewModel.iniciarNovoDia()
-                    navController.navigate(Screen.Home.route) {
-                        popUpTo(Screen.Home.route) { inclusive = true }
+                    if (navController.currentDestination?.route?.startsWith("resultado") == true) {
+                        sessaoViewModel.iniciarNovoDia()
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Home.route) { inclusive = true }
+                        }
                     }
+                }
+            )
+        }
+
+        composable(Screen.JogadoresSairam.route) {
+            JogadoresSairamDurantePartidaScreen(
+                sessaoViewModel = sessaoViewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
                 }
             )
         }
@@ -155,8 +204,16 @@ fun NavGraph(
         composable(Screen.Historico.route) {
             HistoricoScreen(
                 viewModel = historicoViewModel,
-                onNavigateBack = { navController.popBackStack() },
-                onJogoClick = { id -> navController.navigate(Screen.DetalhesJogo.createRoute(id)) }
+                onNavigateBack = { 
+                    if (navController.currentDestination?.route == Screen.Historico.route) {
+                        navController.popBackStack(Screen.Home.route, false)
+                    }
+                },
+                onJogoClick = { id -> 
+                    if (navController.currentDestination?.route == Screen.Historico.route) {
+                        navController.navigate(Screen.DetalhesJogo.createRoute(id)) 
+                    }
+                }
             )
         }
 
@@ -168,7 +225,11 @@ fun NavGraph(
             DetalhesJogoScreen(
                 jogoId = id,
                 viewModel = historicoViewModel,
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { 
+                    if (navController.currentDestination?.route?.startsWith("detalhes_jogo") == true) {
+                        navController.popBackStack()
+                    }
+                }
             )
         }
 
@@ -180,7 +241,11 @@ fun NavGraph(
             EstatisticasJogadorScreen(
                 jogadorId = id,
                 viewModel = historicoViewModel,
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { 
+                    if (navController.currentDestination?.route?.startsWith("estatisticas") == true) {
+                        navController.popBackStack()
+                    }
+                }
             )
         }
     }

@@ -20,6 +20,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.amigosdaquinta.data.local.entity.Jogador
 import com.example.amigosdaquinta.viewmodel.JogadoresViewModel
+import com.example.amigosdaquinta.viewmodel.SessaoViewModel
 import com.example.amigosdaquinta.ui.screens.home.AdicionarJogadorDialog
 
 /**
@@ -29,11 +30,16 @@ import com.example.amigosdaquinta.ui.screens.home.AdicionarJogadorDialog
 @Composable
 fun GerenciarJogadoresScreen(
     viewModel: JogadoresViewModel,
+    sessaoViewModel: SessaoViewModel,
     onNavigateBack: () -> Unit
 ) {
     val jogadores by viewModel.jogadores.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val erroMensagem by viewModel.erroMensagem.collectAsState()
+    
+    val listaPresenca by sessaoViewModel.listaPresenca.collectAsState()
+    val timeBranco by sessaoViewModel.timeBrancoAtual.collectAsState()
+    val timeVermelho by sessaoViewModel.timeVermelhoAtual.collectAsState()
 
     var showAdicionarDialog by remember { mutableStateOf(false) }
     var jogadorParaEditar by remember { mutableStateOf<Jogador?>(null) }
@@ -96,8 +102,14 @@ fun GerenciarJogadoresScreen(
                     }
 
                     items(items = jogadoresOrdenados, key = { it.id }) { jogador ->
+                        val estaEmUso = listaPresenca.any { it.first.id == jogador.id } ||
+                                        timeBranco.any { it.id == jogador.id } ||
+                                        timeVermelho.any { it.id == jogador.id }
+
                         JogadorGerenciarItem(
                             jogador = jogador,
+                            podeRemover = !estaEmUso,
+                            podeEditar = !estaEmUso,
                             onEditar = { jogadorParaEditar = jogador },
                             onRemover = { jogadorParaRemover = jogador }
                         )
@@ -175,7 +187,7 @@ private fun TotalJogadoresCard(total: Int) {
 }
 
 @Composable
-private fun JogadorGerenciarItem(jogador: Jogador, onEditar: () -> Unit, onRemover: () -> Unit) {
+private fun JogadorGerenciarItem(jogador: Jogador, podeRemover: Boolean, podeEditar: Boolean, onEditar: () -> Unit, onRemover: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
@@ -209,8 +221,21 @@ private fun JogadorGerenciarItem(jogador: Jogador, onEditar: () -> Unit, onRemov
                     )
                 }
                 
-                IconButton(onClick = onEditar, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Edit, "Editar", tint = Color.Gray, modifier = Modifier.size(20.dp)) }
-                IconButton(onClick = onRemover, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Delete, "Remover", tint = Color.Red.copy(alpha = 0.7f), modifier = Modifier.size(20.dp)) }
+                if (podeEditar) {
+                    IconButton(onClick = onEditar, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Edit, "Editar", tint = Color.Gray, modifier = Modifier.size(20.dp)) }
+                } else {
+                    IconButton(onClick = { }, enabled = false, modifier = Modifier.size(36.dp)) { 
+                        Icon(Icons.Default.Edit, "Editar", tint = Color.LightGray, modifier = Modifier.size(20.dp)) 
+                    }
+                }
+                
+                if (podeRemover) {
+                    IconButton(onClick = onRemover, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Delete, "Remover", tint = Color.Red.copy(alpha = 0.7f), modifier = Modifier.size(20.dp)) }
+                } else {
+                    IconButton(onClick = { }, enabled = false, modifier = Modifier.size(36.dp)) { 
+                        Icon(Icons.Default.Delete, "Remover", tint = Color.LightGray, modifier = Modifier.size(20.dp)) 
+                    }
+                }
             }
         }
     }

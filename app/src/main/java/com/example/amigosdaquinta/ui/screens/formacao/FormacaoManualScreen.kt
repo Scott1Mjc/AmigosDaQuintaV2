@@ -76,7 +76,7 @@ fun FormacaoManualScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Área de Escalação (Lado a Lado) - Altura fixa para permitir scroll na tela toda
+            // Área de Escalação (Lado a Lado)
             Row(
                 modifier = Modifier.height(500.dp).fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -85,7 +85,7 @@ fun FormacaoManualScreen(
                     modifier = Modifier.weight(1f),
                     titulo = "TIME BRANCO",
                     cor = Color(0xFFE8E2FF),
-                    jogadores = timeBranco,
+                    jogadores = timeBranco.sortedByDescending { it.isPosicaoGoleiro },
                     completo = timeBranco.size == 11,
                     temGoleiro = timeBranco.any { it.isPosicaoGoleiro },
                     onAdicionar = {
@@ -101,7 +101,7 @@ fun FormacaoManualScreen(
                     modifier = Modifier.weight(1f),
                     titulo = "TIME VERMELHO",
                     cor = Color(0xFFFFE1E1),
-                    jogadores = timeVermelho,
+                    jogadores = timeVermelho.sortedByDescending { it.isPosicaoGoleiro },
                     completo = timeVermelho.size == 11,
                     temGoleiro = timeVermelho.any { it.isPosicaoGoleiro },
                     onAdicionar = {
@@ -134,24 +134,30 @@ fun FormacaoManualScreen(
                 )
             }
             
-            // Margem inferior extra para tablets pequenos em paisagem
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
 
     if (showDialog && timeParaAdicionar != null) {
-        val jaTemGoleiro = if (timeParaAdicionar == TimeColor.BRANCO) timeBranco.any { it.isPosicaoGoleiro } else timeVermelho.any { it.isPosicaoGoleiro }
+        val timeAlvo = if (timeParaAdicionar == TimeColor.BRANCO) timeBranco else timeVermelho
+        val temGoleiro = timeAlvo.any { it.isPosicaoGoleiro }
+        val qtdLinha = timeAlvo.count { !it.isPosicaoGoleiro }
         
+        // Bloqueia goleiros se já tem um, ou linha se já tem 10
+        // No diálogo passamos apenas bloquearGoleiros, mas na seleção tratamos ambos
         SelecionarJogadorParaTimeDialog(
             jogadores = jogadoresDisponiveis,
-            bloquearGoleiros = jaTemGoleiro,
+            bloquearGoleiros = temGoleiro,
             onDismiss = {
                 showDialog = false
                 timeParaAdicionar = null
             },
             onSelect = { jogador ->
-                if (timeParaAdicionar == TimeColor.BRANCO && timeBranco.size < 11) timeBranco = timeBranco + jogador
-                else if (timeParaAdicionar == TimeColor.VERMELHO && timeVermelho.size < 11) timeVermelho = timeVermelho + jogador
+                val podeAdd = if (jogador.isPosicaoGoleiro) !temGoleiro else qtdLinha < 10
+                if (podeAdd) {
+                    if (timeParaAdicionar == TimeColor.BRANCO) timeBranco = timeBranco + jogador
+                    else timeVermelho = timeVermelho + jogador
+                }
                 showDialog = false
                 timeParaAdicionar = null
             }

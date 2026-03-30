@@ -76,7 +76,7 @@ fun HistoricoScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         contentPadding = PaddingValues(bottom = 16.dp)
                     ) {
-                        items(jogos) { jogo ->
+                        items(jogos, key = { it.id }) { jogo ->
                             JogoHistoricoItem(
                                 jogo = jogo,
                                 dateFormat = dateFormat,
@@ -141,10 +141,11 @@ private fun JogoHistoricoItem(jogo: Jogo, dateFormat: SimpleDateFormat, timeForm
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // ✅ ORDEM INVERTIDA: VERMELHO x BRANCO
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("BRANCO", style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f), textAlign = TextAlign.End, color = Color.Gray)
-                Text("  ${jogo.placarBranco} x ${jogo.placarVermelho}  ", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Color.Black)
-                Text("VERMELHO", style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f), textAlign = TextAlign.Start, color = Color.Gray)
+                Text("VERMELHO", style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f), textAlign = TextAlign.End, color = Color.Gray)
+                Text("  ${jogo.placarVermelho} x ${jogo.placarBranco}  ", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Color.Black)
+                Text("BRANCO", style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f), textAlign = TextAlign.Start, color = Color.Gray)
             }
 
             Spacer(modifier = Modifier.height(16.dp))

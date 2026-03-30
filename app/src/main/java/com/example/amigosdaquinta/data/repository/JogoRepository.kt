@@ -98,10 +98,15 @@ class JogoRepository(
      * Conclui uma partida, definindo o status como FINALIZADO e o time vencedor.
      *
      * @param id ID do jogo.
+     * @param placarBranco Placar final do time branco.
+     * @param placarVermelho Placar final do time vermelho.
      * @param vencedor Time vencedor (nulo para empate).
      */
-    suspend fun finalizarJogo(id: Long, vencedor: TimeColor?) =
+    suspend fun finalizarJogo(id: Long, placarBranco: Int, placarVermelho: Int, vencedor: TimeColor?) {
+        jogoDao.atualizarPlacarBranco(id, placarBranco)
+        jogoDao.atualizarPlacarVermelho(id, placarVermelho)
         jogoDao.finalizarJogo(id, vencedor, StatusJogo.FINALIZADO)
+    }
 
     /**
      * Conta a quantidade total de jogos realizados no intervalo especificado.

@@ -15,9 +15,6 @@ import com.example.amigosdaquinta.data.local.entity.TimeColor
 
 /**
  * Tela de Resultado Final da Partida.
- *
- * Apresenta o placar definitivo e o vencedor, oferecendo opções para 
- * dar continuidade à sessão (próximo jogo) ou encerrar as atividades do dia.
  */
 @Composable
 fun ResultadoScreen(
@@ -25,6 +22,7 @@ fun ResultadoScreen(
     placarBranco: Int,
     placarVermelho: Int,
     onProximoJogo: () -> Unit,
+    onJogadoresSairam: () -> Unit,
     onEncerrar: () -> Unit
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -48,7 +46,6 @@ fun ResultadoScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Card de Placar Final com estilo padronizado
             Surface(
                 modifier = Modifier.fillMaxWidth(if (isTablet) 0.7f else 1f),
                 shape = MaterialTheme.shapes.large,
@@ -65,7 +62,6 @@ fun ResultadoScreen(
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Invertido: Vermelho à esquerda, Branco à direita
                         TeamScoreColumn(label = "VERMELHO", score = placarVermelho)
                         Text("x", style = MaterialTheme.typography.displayMedium, color = Color.Gray)
                         TeamScoreColumn(label = "BRANCO", score = placarBranco)
@@ -75,7 +71,6 @@ fun ResultadoScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Mensagem de Vencedor
             val (resultadoTexto, corResultado) = when (vencedor) {
                 TimeColor.BRANCO -> "TIME BRANCO VENCEU!" to Color.Black
                 TimeColor.VERMELHO -> "TIME VERMELHO VENCEU!" to Color.Black
@@ -90,25 +85,34 @@ fun ResultadoScreen(
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(64.dp))
+            Spacer(modifier = Modifier.height(48.dp))
 
-            // Ações de Continuidade - Ajuste de largura para tablets
             Column(
                 modifier = Modifier.fillMaxWidth(if (isTablet) 0.5f else 1f),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(
                     onClick = onProximoJogo,
-                    modifier = Modifier.fillMaxWidth().height(60.dp),
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
                     shape = MaterialTheme.shapes.medium,
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4B0082))
                 ) {
                     Text("FORMAR PRÓXIMO JOGO", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
 
+                // ✅ NOVO BOTÃO: Jogadores que saíram durante a partida
+                Button(
+                    onClick = onJogadoresSairam,
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF673AB7))
+                ) {
+                    Text("JOGADORES QUE SAÍRAM", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                }
+
                 OutlinedButton(
                     onClick = onEncerrar,
-                    modifier = Modifier.fillMaxWidth().height(60.dp),
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
                     shape = MaterialTheme.shapes.medium,
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red.copy(alpha = 0.8f))
                 ) {

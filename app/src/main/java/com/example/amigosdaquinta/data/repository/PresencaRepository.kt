@@ -2,6 +2,7 @@ package com.example.amigosdaquinta.data.repository
 
 import com.example.amigosdaquinta.data.local.dao.PresencaDao
 import com.example.amigosdaquinta.data.local.entity.PresencaDia
+import com.example.amigosdaquinta.data.model.PresencaComJogador
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -22,6 +23,14 @@ class PresencaRepository(private val presencaDao: PresencaDao) {
      */
     fun obterPresencasDoDia(dataInicio: Long, dataFim: Long): Flow<List<PresencaDia>> =
         presencaDao.obterPresencasDoDia(dataInicio, dataFim)
+
+    /**
+     * Retorna a lista de presenças ordenadas com dados dos jogadores para o dia atual.
+     */
+    suspend fun obterPresencasOrdenadas(): List<PresencaComJogador> = withContext(Dispatchers.IO) {
+        val (inicio, fim) = obterInicioEFimDoDia(System.currentTimeMillis())
+        presencaDao.obterPresencasComJogador(inicio, fim)
+    }
 
     /**
      * Retorna todos os registros de presença (ativos e inativos) de um dia.

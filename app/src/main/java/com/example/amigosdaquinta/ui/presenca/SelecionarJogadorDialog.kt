@@ -28,7 +28,7 @@ fun SelecionarJogadorDialog(
     val filtrados = remember(jogadores, query) {
         jogadores.filter {
             it.nome.contains(query, ignoreCase = true) || it.numeroCamisa.toString().contains(query)
-        }.sortedBy { it.numeroCamisa }
+        }.sortedBy { it.numeroCamisa }.distinctBy { it.id }
     }
 
     AlertDialog(
@@ -51,7 +51,7 @@ fun SelecionarJogadorDialog(
                     Text("Nenhum atleta disponível", modifier = Modifier.padding(16.dp), color = Color.Gray)
                 } else {
                     LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
-                        items(filtrados) { jog ->
+                        items(filtrados, key = { it.id }) { jog ->
                             ItemSelecaoJogador(jogador = jog, onClick = { onSelect(jog) })
                         }
                     }

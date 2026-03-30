@@ -30,7 +30,7 @@ fun SelecionarJogadorParaTimeDialog(
     val filtrados = remember(jogadores, query) {
         jogadores.filter {
             it.nome.contains(query, ignoreCase = true) || it.numeroCamisa.toString().contains(query)
-        }.sortedBy { it.numeroCamisa }
+        }.sortedBy { it.numeroCamisa }.distinctBy { it.id }
     }
 
     val goleiros = filtrados.filter { it.isPosicaoGoleiro }
@@ -58,7 +58,7 @@ fun SelecionarJogadorParaTimeDialog(
                     LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
                         if (goleiros.isNotEmpty()) {
                             item { SectionHeader("GOLEIROS") }
-                            items(goleiros) { jog -> 
+                            items(goleiros, key = { "gol_${it.id}" }) { jog -> 
                                 ItemSelecao(
                                     jogador = jog, 
                                     enabled = !bloquearGoleiros,
@@ -69,7 +69,7 @@ fun SelecionarJogadorParaTimeDialog(
 
                         if (linha.isNotEmpty()) {
                             item { SectionHeader("JOGADORES DE LINHA") }
-                            items(linha) { jog -> ItemSelecao(jogador = jog, onSelect = onSelect) }
+                            items(linha, key = { "lin_${it.id}" }) { jog -> ItemSelecao(jogador = jog, onSelect = onSelect) }
                         }
                     }
                 }

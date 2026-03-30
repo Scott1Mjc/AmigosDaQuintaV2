@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -40,6 +41,8 @@ fun TimeFormadoCard(
     onAdicionar: () -> Unit,
     onRemover: (Jogador) -> Unit
 ) {
+    val jogadoresUnicos = remember(jogadores) { jogadores.distinctBy { it.id } }
+
     Card(
         modifier = modifier.fillMaxHeight(),
         colors = CardDefaults.cardColors(containerColor = cor),
@@ -56,13 +59,13 @@ fun TimeFormadoCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(text = titulo, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text(text = "${jogadores.size}/11", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(text = "${jogadoresUnicos.size}/11", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
             // Alertas de Validação
-            if (jogadores.isNotEmpty() && !temGoleiro) {
+            if (jogadoresUnicos.isNotEmpty() && !temGoleiro) {
                 Surface(
                     color = Color.White.copy(alpha = 0.9f),
                     shape = MaterialTheme.shapes.small
@@ -92,14 +95,14 @@ fun TimeFormadoCard(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            if (jogadores.isEmpty()) {
+            if (jogadoresUnicos.isEmpty()) {
                 EmptyTimeState()
             } else {
                 LazyColumn(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(items = jogadores, key = { it.id }) { jogador ->
+                    items(items = jogadoresUnicos, key = { it.id }) { jogador ->
                         JogadorNoTimeItem(jogador = jogador, onRemover = { onRemover(jogador) })
                     }
                 }

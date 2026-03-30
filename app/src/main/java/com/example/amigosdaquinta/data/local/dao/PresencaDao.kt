@@ -2,6 +2,7 @@ package com.example.amigosdaquinta.data.local.dao
 
 import androidx.room.*
 import com.example.amigosdaquinta.data.local.entity.PresencaDia
+import com.example.amigosdaquinta.data.model.PresencaComJogador
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -23,6 +24,17 @@ interface PresencaDao {
         ORDER BY ordemChegada ASC
     """)
     fun obterPresencasDoDia(dataInicio: Long, dataFim: Long): Flow<List<PresencaDia>>
+
+    /**
+     * Retorna a lista de presenças com dados do jogador, ordenadas.
+     */
+    @Transaction
+    @Query("""
+        SELECT * FROM lista_presenca 
+        WHERE data >= :dataInicio AND data <= :dataFim AND ativo = 1 
+        ORDER BY ordemChegada ASC
+    """)
+    suspend fun obterPresencasComJogador(dataInicio: Long, dataFim: Long): List<PresencaComJogador>
 
     /**
      * Retorna todos os registros de presença de um dia específico (ativos e inativos).

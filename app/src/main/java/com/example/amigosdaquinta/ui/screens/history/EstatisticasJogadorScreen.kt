@@ -76,7 +76,7 @@ fun EstatisticasJogadorScreen(
                     Text("Últimas 5 Partidas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
 
-                items(stats!!.ultimosJogos) { jogo ->
+                items(stats!!.ultimosJogos, key = { it.id }) { jogo ->
                     JogoResumoHistoricoItem(jogo = jogo, dateFormat = dateFormat)
                 }
             }

@@ -78,21 +78,22 @@ fun DetalhesJogoScreen(
                 )
 
                 // Escaladas dos Times
+                // ✅ ORDEM INVERTIDA: VERMELHO à esquerda, BRANCO à direita
                 Row(
                     modifier = Modifier.fillMaxWidth().weight(1f),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     EscalacaoHistoricoCard(
-                        titulo = "TIME BRANCO",
-                        jogadores = detalhes!!.timeBranco,
-                        containerColor = Color(0xFFE8E2FF),
+                        titulo = "TIME VERMELHO",
+                        jogadores = detalhes!!.timeVermelho,
+                        containerColor = Color(0xFFFFE1E1),
                         modifier = Modifier.weight(1f)
                     )
 
                     EscalacaoHistoricoCard(
-                        titulo = "TIME VERMELHO",
-                        jogadores = detalhes!!.timeVermelho,
-                        containerColor = Color(0xFFFFE1E1),
+                        titulo = "TIME BRANCO",
+                        jogadores = detalhes!!.timeBranco,
+                        containerColor = Color(0xFFE8E2FF),
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -124,10 +125,33 @@ private fun PainelResultadoDetalhes(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                Text("BRANCO", style = MaterialTheme.typography.titleSmall, color = Color.Gray)
-                Text("  ${jogo.placarBranco} x ${jogo.placarVermelho}  ", style = MaterialTheme.typography.displayLarge, fontWeight = FontWeight.ExtraBold, fontSize = 56.sp, color = Color.Black)
-                Text("VERMELHO", style = MaterialTheme.typography.titleSmall, color = Color.Gray)
+            // ✅ Alinhamento centralizado garantido com pesos iguais nos nomes dos times
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "VERMELHOS",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = Color.Gray,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.End
+                )
+                Text(
+                    text = " ${jogo.placarVermelho} x ${jogo.placarBranco} ",
+                    style = MaterialTheme.typography.displayLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 56.sp,
+                    color = Color.Black,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+                Text(
+                    text = "BRANCO",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = Color.Gray,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Start
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -152,9 +176,10 @@ private fun EscalacaoHistoricoCard(
     modifier: Modifier = Modifier
 ) {
     val ordenados = remember(jogadores) {
-        jogadores.sortedWith(
-            compareBy<JogadorParticipacao> { it.foiSubstituido }
-                .thenBy { !it.jogador.isPosicaoGoleiro }
+        // ✅ GOLEIROS SEMPRE NO TOPO
+        jogadores.distinctBy { it.jogador.id }.sortedWith(
+            compareBy<JogadorParticipacao> { !it.jogador.isPosicaoGoleiro } // Goleiro (false) vem antes de linha (true)
+                .thenBy { it.foiSubstituido }
                 .thenBy { it.entrouComoSubstituto }
                 .thenBy { it.jogador.nome }
         )
@@ -165,7 +190,7 @@ private fun EscalacaoHistoricoCard(
             Text("$titulo (${jogadores.size})", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
             LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(ordenados) { part ->
+                items(ordenados, key = { it.jogador.id }) { part ->
                     val s = part.foiSubstituido
                     val e = part.entrouComoSubstituto
                     val surfCol = if (s) Color.Black else Color.White

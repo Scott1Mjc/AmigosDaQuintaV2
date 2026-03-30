@@ -5,8 +5,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,9 +17,6 @@ import com.example.amigosdaquinta.data.local.entity.TimeColor
 
 /**
  * Diálogo para realização de substituições durante a partida.
- * 
- * Permite trocar um jogador em campo por um da fila de espera, respeitando a posição
- * técnica (Goleiro substitui Goleiro). Inclui opção para registrar lesão.
  */
 @Composable
 fun SubstituicaoDialog(
@@ -34,11 +29,21 @@ fun SubstituicaoDialog(
     var query by remember { mutableStateOf("") }
     var lesionado by remember { mutableStateOf(false) }
 
-    val filtrados = remember(jogadoresDisponiveis, query, jogadorSaindo) {
-        jogadoresDisponiveis.filter {
-            it.isPosicaoGoleiro == jogadorSaindo.isPosicaoGoleiro &&
-            (query.isBlank() || it.nome.contains(query, ignoreCase = true) || it.numeroCamisa.toString().contains(query))
-        }.sortedBy { it.nome }
+    // ✅ REGRA: Se sair Goleiro, só entra Goleiro. Se sair Linha, só entra Linha.
+    val filtrados = remember(jogadoresDisponiveis, query) {
+        jogadoresDisponiveis
+            .filter { jog ->
+                val matchSearch = query.isBlank() || 
+                                 jog.nome.contains(query, ignoreCase = true) || 
+                                 jog.numeroCamisa.toString().contains(query)
+                
+                // Restrição de posição: Goleiro substitui Goleiro, Linha substitui Linha
+                val matchPosicao = jog.isPosicaoGoleiro == jogadorSaindo.isPosicaoGoleiro
+                
+                matchSearch && matchPosicao
+            }
+            .sortedBy { it.nome }
+            .distinctBy { it.id }
     }
 
     AlertDialog(
@@ -56,7 +61,11 @@ fun SubstituicaoDialog(
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text("SAINDO:", style = MaterialTheme.typography.labelSmall, color = Color.Red, fontWeight = FontWeight.Bold)
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(jogadorSaindo.nome, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text(
+                                (if (jogadorSaindo.isPosicaoGoleiro) "[GOL] " else "") + jogadorSaindo.nome,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
                             Text("#${jogadorSaindo.numeroCamisa}", style = MaterialTheme.typography.titleMedium)
                         }
                     }
@@ -74,23 +83,25 @@ fun SubstituicaoDialog(
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    placeholder = { Text("Buscar substituto...") },
+                    placeholder = { Text("Buscar substituto na fila...") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    shape = MaterialTheme.shapes.medium
+                    shape = MaterialTheme.shapes.medium,
+                    leadingIcon = { Icon(Icons.Default.Search, null) }
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("DISPONÍVEIS:", style = MaterialTheme.typography.labelSmall, color = Color.Gray, fontWeight = FontWeight.Bold)
+                val tipoText = if (jogadorSaindo.isPosicaoGoleiro) "GOLEIROS" else "JOGADORES DE LINHA"
+                Text("$tipoText DISPONÍVEIS NA FILA:", style = MaterialTheme.typography.labelSmall, color = Color.Gray, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
 
                 if (filtrados.isEmpty()) {
                     Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                        Text("Nenhum ${if (jogadorSaindo.isPosicaoGoleiro) "goleiro" else "atleta"} na fila", color = Color.Gray)
+                        Text("Nenhum ${if (jogadorSaindo.isPosicaoGoleiro) "goleiro" else "jogador"} disponível", color = Color.Gray)
                     }
                 } else {
                     LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 250.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(filtrados) { jog ->
+                        items(filtrados, key = { it.id }) { jog ->
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
                                 onClick = { onConfirm(jog, lesionado) },
@@ -98,7 +109,11 @@ fun SubstituicaoDialog(
                                 color = Color(0xFFF3F0F5)
                             ) {
                                 Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                    Text(jog.nome, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        (if (jog.isPosicaoGoleiro) "[GOL] " else "") + jog.nome,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                     Surface(shape = MaterialTheme.shapes.small, color = Color(0xFFF0EDFF)) {
                                         Text("#${jog.numeroCamisa}", modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium, color = Color(0xFF4B0082), fontWeight = FontWeight.Bold)
                                     }

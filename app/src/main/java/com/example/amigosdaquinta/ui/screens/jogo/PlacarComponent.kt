@@ -6,44 +6,33 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
 
 /**
  * Componente Central de Placar e Cronômetro.
  * 
- * Unifica a exibição da pontuação das equipes com o controle de tempo da partida.
- * Oferece botões rápidos para registro de gols e pausar/retomar o tempo.
+ * Agora utiliza o estado centralizado do SessaoViewModel para manter o tempo
+ * sincronizado mesmo entre navegação de telas.
  */
 @Composable
 fun PlacarComponent(
     placarBranco: Int,
     placarVermelho: Int,
+    tempoRestanteSegundos: Int,
+    pausado: Boolean,
     duracaoMinutos: Int,
     onGolBranco: () -> Unit,
     onGolVermelho: () -> Unit,
-    onTempoEsgotado: () -> Unit,
+    onAlternarPausa: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var tempoRestante by rememberSaveable { mutableIntStateOf(duracaoMinutos * 60) }
-    var pausado by rememberSaveable { mutableStateOf(false) }
-    val tempoInicial = rememberSaveable { duracaoMinutos * 60 }
-
-    LaunchedEffect(pausado, tempoRestante) {
-        if (!pausado && tempoRestante > 0) {
-            delay(1000L)
-            tempoRestante--
-            if (tempoRestante == 0) onTempoEsgotado()
-        }
-    }
-
-    val min = tempoRestante / 60
-    val seg = tempoRestante % 60
+    val tempoInicialTotal = duracaoMinutos * 60
+    val min = tempoRestanteSegundos / 60
+    val seg = tempoRestanteSegundos % 60
 
     Surface(
         modifier = modifier,
@@ -55,7 +44,7 @@ fun PlacarComponent(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // LADO VERMELHO (Invertido para alinhar com o card lateral)
+            // LADO VERMELHO
             ScoreActionColumn(
                 label = "VERMELHO",
                 score = placarVermelho,
@@ -73,24 +62,31 @@ fun PlacarComponent(
                     text = String.format("%02d:%02d", min, seg),
                     style = MaterialTheme.typography.displayLarge,
                     fontWeight = FontWeight.Black,
-                    color = if (tempoRestante <= 300 && tempoRestante > 0) Color.Red else Color.Black
+                    color = if (tempoRestanteSegundos <= 300 && tempoRestanteSegundos > 0) Color.Red else Color.Black
                 )
                 
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    IconButton(onClick = { pausado = !pausado }, modifier = Modifier.size(40.dp)) {
-                        Icon(if (pausado) Icons.Default.PlayArrow else Icons.Default.Pause, null, modifier = Modifier.size(32.dp))
+                    IconButton(onClick = onAlternarPausa, modifier = Modifier.size(40.dp)) {
+                        Icon(
+                            if (pausado) Icons.Default.PlayArrow else Icons.Default.Pause, 
+                            null, 
+                            modifier = Modifier.size(32.dp)
+                        )
                     }
                     
                     LinearProgressIndicator(
-                        progress = { tempoRestante.toFloat() / tempoInicial.toFloat() },
+                        progress = { 
+                            if (tempoInicialTotal > 0) tempoRestanteSegundos.toFloat() / tempoInicialTotal.toFloat() 
+                            else 0f 
+                        },
                         modifier = Modifier.width(120.dp).height(8.dp),
-                        color = if (tempoRestante <= 300) Color.Red else Color(0xFF4B0082),
+                        color = if (tempoRestanteSegundos <= 300) Color.Red else Color(0xFF4B0082),
                         trackColor = Color.White
                     )
                 }
             }
 
-            // LADO BRANCO (Invertido para alinhar com o card lateral)
+            // LADO BRANCO
             ScoreActionColumn(
                 label = "BRANCO",
                 score = placarBranco,
