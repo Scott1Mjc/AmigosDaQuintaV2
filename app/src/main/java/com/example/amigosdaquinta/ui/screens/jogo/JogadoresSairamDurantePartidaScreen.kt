@@ -19,8 +19,7 @@ import com.example.amigosdaquinta.viewmodel.SessaoViewModel
 
 /**
  * Tela para apontar jogadores que saíram durante a partida.
- * Permite remover jogadores que estavam escalados sem afetar a ordem da fila de espera
- * para a próxima formação automática.
+ * Permite remover jogadores que estavam escalados, tirando-os totalmente da sessão e da fila de presença.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,8 +46,8 @@ fun JogadoresSairamDurantePartidaScreen(
             Surface(tonalElevation = 8.dp) {
                 Button(
                     onClick = {
-                        jogadoresSaindo.forEach { id ->
-                            sessaoViewModel.removerDaListaPresenca(id)
+                        if (jogadoresSaindo.isNotEmpty()) {
+                            sessaoViewModel.removerVariosDaListaPresenca(jogadoresSaindo.toList())
                         }
                         onNavigateBack()
                     },
@@ -75,7 +74,7 @@ fun JogadoresSairamDurantePartidaScreen(
         ) {
             item {
                 Text(
-                    "Selecione os atletas que foram embora ou se lesionaram e não participarão das próximas partidas.",
+                    "Selecione os atletas que foram embora ou se lesionaram. Eles serão removidos permanentemente desta sessão.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.Gray
                 )

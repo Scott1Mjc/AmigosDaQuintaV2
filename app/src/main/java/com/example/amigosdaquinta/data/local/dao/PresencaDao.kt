@@ -105,6 +105,15 @@ interface PresencaDao {
     suspend fun marcarComoInativo(id: Long)
 
     /**
+     * Marca múltiplos jogadores como inativos na sessão atual.
+     */
+    @Query("""
+        UPDATE lista_presenca SET ativo = 0 
+        WHERE jogadorId IN (:jogadorIds) AND data >= :dataInicio AND data <= :dataFim
+    """)
+    suspend fun marcarJogadoresComoInativosNoDia(jogadorIds: List<Long>, dataInicio: Long, dataFim: Long)
+
+    /**
      * Incrementa o contador de jogos participados por um atleta no dia.
      */
     @Query("UPDATE lista_presenca SET jogosParticipados = jogosParticipados + 1 WHERE id = :id")

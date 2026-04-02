@@ -99,6 +99,14 @@ class PresencaRepository(private val presencaDao: PresencaDao) {
         presencaDao.marcarComoInativo(presencaId)
 
     /**
+     * Marca múltiplos jogadores como inativos na sessão atual.
+     */
+    suspend fun marcarJogadoresComoInativosNoDia(jogadorIds: List<Long>) = withContext(Dispatchers.IO) {
+        val (inicio, fim) = obterInicioEFimDoDia(System.currentTimeMillis())
+        presencaDao.marcarJogadoresComoInativosNoDia(jogadorIds, inicio, fim)
+    }
+
+    /**
      * Incrementa o contador de jogos que o atleta participou no dia.
      */
     suspend fun incrementarJogosParticipados(presencaId: Long) =

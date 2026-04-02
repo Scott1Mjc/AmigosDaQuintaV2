@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class SessaoViewModel(
@@ -214,11 +215,9 @@ class SessaoViewModel(
                 if (vencedor == null) {
                     _jogosConsecutivosTimeAtual.value = 0
                     // No empate, ambos saem (regra da pelada) ou um é escolhido.
-                    // Se não houver vencedor, limpamos ambos para a FormacaoAutomatica decidir.
                     _timeBrancoAtual.value = emptyList()
                     _timeVermelhoAtual.value = emptyList()
                 } else {
-                    // Se o mesmo time ganhou de novo, incrementa. Se foi o desafiante, reseta para 1.
                     if (vencedor == timeGanhadorUltimoJogo) {
                         _jogosConsecutivosTimeAtual.value++
                     } else {
@@ -247,11 +246,11 @@ class SessaoViewModel(
     fun substituirJogador(jogadorSaindo: Jogador, jogadorEntrando: Jogador, time: TimeColor, isLesionado: Boolean = false) {
         viewModelScope.launch {
             try {
-                if (time == TimeColor.BRANCO) _timeBrancoAtual.value += jogadorEntrando
-                else _timeVermelhoAtual.value += jogadorEntrando
+                if (time == TimeColor.BRANCO) _timeBrancoAtual.update { it + jogadorEntrando }
+                else _timeVermelhoAtual.update { it + jogadorEntrando }
 
-                _jogadoresSubstituidosIds.value += jogadorSaindo.id
-                _jogadoresQueEntraramSubstitutosIds.value += jogadorEntrando.id
+                _jogadoresSubstituidosIds.update { it + jogadorSaindo.id }
+                _jogadoresQueEntraramSubstitutosIds.update { it + jogadorEntrando.id }
 
                 if (isLesionado) removerDaListaPresenca(jogadorSaindo.id)
 
@@ -272,7 +271,7 @@ class SessaoViewModel(
         viewModelScope.launch {
             if (!_listaPresenca.value.any { it.first.id == jogador.id }) {
                 val timestamp = System.currentTimeMillis()
-                _listaPresenca.value += (jogador to timestamp)
+                _listaPresenca.update { it + (jogador to timestamp) }
                 presencaRepository.registrarPresenca(jogador.id, timestamp)
             }
         }
@@ -288,16 +287,46 @@ class SessaoViewModel(
                 }
 
                 // 2. Remover da lista em memória (fila de espera)
-                _listaPresenca.value = _listaPresenca.value.filter { it.first.id != jogadorId }
+                _listaPresenca.update { list -> list.filter { it.first.id != jogadorId } }
 
                 // 3. Remover dos times atuais se estiver escalado
-                _timeBrancoAtual.value = _timeBrancoAtual.value.filter { it.id != jogadorId }
-                _timeVermelhoAtual.value = _timeVermelhoAtual.value.filter { it.id != jogadorId }
+                _timeBrancoAtual.update { list -> list.filter { it.id != jogadorId } }
+                _timeVermelhoAtual.update { list -> list.filter { it.id != jogadorId } }
                 
                 // 4. Resetar status de campo no repo de jogadores
                 jogadorRepository.atualizarStatusCampo(jogadorId, false)
             } catch (e: Exception) {
                 Log.e(TAG, "Erro ao remover jogador da presença: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Remove múltiplos jogadores da presença (saída definitiva da pelada).
+     */
+    fun removerVariosDaListaPresenca(jogadorIds: List<Long>) {
+        viewModelScope.launch {
+            try {
+                // 1. Banco de Dados (Inativação lógica)
+                presencaRepository.marcarJogadoresComoInativosNoDia(jogadorIds)
+
+                // 2. Memória (Fila de Espera)
+                _listaPresenca.update { list ->
+                    list.filter { it.first.id !in jogadorIds }
+                }
+
+                // 3. Memória (Times Atuais)
+                _timeBrancoAtual.update { list ->
+                    list.filter { it.id !in jogadorIds }
+                }
+                _timeVermelhoAtual.update { list ->
+                    list.filter { it.id !in jogadorIds }
+                }
+
+                // 4. Status de Campo
+                jogadorRepository.atualizarStatusCampoMuitos(jogadorIds, false)
+            } catch (e: Exception) {
+                Log.e(TAG, "Erro ao remover múltiplos jogadores: ${e.message}")
             }
         }
     }
