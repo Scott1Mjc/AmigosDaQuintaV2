@@ -76,7 +76,8 @@ class SessaoViewModel(
 
     private var timerJob: Job? = null
     
-    private var timeGanhadorUltimoJogo: TimeColor? = null
+    // Armazena quem é o time incumbente (que já estava em campo vindo do jogo anterior)
+    private var timeIncumbente: TimeColor? = null
 
     private val _jogadoresSubstituidosIds = MutableStateFlow<Set<Long>>(emptySet())
     val jogadoresSubstituidosIds: StateFlow<Set<Long>> = _jogadoresSubstituidosIds.asStateFlow()
@@ -142,6 +143,27 @@ class SessaoViewModel(
 
                     val presencas = presencaRepository.obterPresencasOrdenadas()
                     _listaPresenca.value = presencas.map { Pair(it.jogador, it.horarioChegada) }
+
+                    // Tenta inferir o incumbente para restaurar o estado da rotação
+                    if (jogoEmAndamento.numeroJogo > 1) {
+                        val todosJogos = jogoRepository.obterTodos().first()
+                        val jogoAnterior = todosJogos.find { it.numeroJogo == jogoEmAndamento.numeroJogo - 1 }
+                        if (jogoAnterior != null) {
+                            val partAnterior = participacaoRepository.obterPorJogo(jogoAnterior.id)
+                            val idsAnterior = partAnterior.map { it.jogadorId }.toSet()
+                            
+                            val brancoEstavaAnterior = _timeBrancoAtual.value.any { it.id in idsAnterior }
+                            val vermelhoEstavaAnterior = _timeVermelhoAtual.value.any { it.id in idsAnterior }
+                            
+                            if (brancoEstavaAnterior && !vermelhoEstavaAnterior) {
+                                timeIncumbente = TimeColor.BRANCO
+                                _jogosConsecutivosTimeAtual.value = 1
+                            } else if (vermelhoEstavaAnterior && !brancoEstavaAnterior) {
+                                timeIncumbente = TimeColor.VERMELHO
+                                _jogosConsecutivosTimeAtual.value = 1
+                            }
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Erro ao restaurar sessão: ${e.message}")
@@ -193,7 +215,6 @@ class SessaoViewModel(
                 _timerPausado.value = true
                 jogoRepository.finalizarJogo(jogoId, _placarBranco.value, _placarVermelho.value, vencedor)
                 _temJogoAtivo.value = false
-                timeGanhadorUltimoJogo = vencedor
             } catch (e: Exception) {
                 Log.e(TAG, "Erro ao finalizar jogo: ${e.message}")
             }
@@ -203,38 +224,43 @@ class SessaoViewModel(
     fun prepararProximaPartida(vencedor: TimeColor?) {
         viewModelScope.launch {
             try {
+                val numJogoAtual = _numeroDoProximoJogo.value
                 _numeroDoProximoJogo.value++
                 
-                // Salva quem jogou para a rotação
+                // Rotaciona a fila: quem jogou agora vai pro fim da fila de prioridade
                 val jogadoresQueJogaram = (_timeBrancoAtual.value + _timeVermelhoAtual.value).map { it.id }.toSet()
                 _jogadoresUltimoJogoIds.value = jogadoresQueJogaram
 
                 val ativosBranco = _timeBrancoAtual.value.filter { j -> !_jogadoresSubstituidosIds.value.contains(j.id) }
                 val ativosVermelho = _timeVermelhoAtual.value.filter { j -> !_jogadoresSubstituidosIds.value.contains(j.id) }
 
-                if (vencedor == null) {
-                    _jogosConsecutivosTimeAtual.value = 0
-                    // No empate, ambos saem (regra da pelada) ou um é escolhido.
+                // ✅ REGRA: [FICA EM CAMPO O TIME QUE ESTÁ NA SUA PRIMEIRA PARTIDA]
+                // Se for o primeiro jogo, o resultado (ou escolha manual) define quem inicia a sequência.
+                // Do segundo jogo em diante, o incumbente sai e o desafiante (que fez sua 1ª partida) fica.
+                val proximoTimeQueFica: TimeColor? = if (numJogoAtual == 1) {
+                    vencedor 
+                } else {
+                    if (timeIncumbente == TimeColor.BRANCO) TimeColor.VERMELHO else TimeColor.BRANCO
+                }
+
+                // Atualiza o incumbente para o controle da próxima partida
+                timeIncumbente = proximoTimeQueFica
+
+                if (proximoTimeQueFica == TimeColor.BRANCO) {
+                    _timeBrancoAtual.value = ativosBranco
+                    _timeVermelhoAtual.value = emptyList()
+                    _jogosConsecutivosTimeAtual.value = 1 // Sinaliza que já jogou 1 e vai pro 2º
+                } else if (proximoTimeQueFica == TimeColor.VERMELHO) {
+                    _timeVermelhoAtual.value = ativosVermelho
+                    _timeBrancoAtual.value = emptyList()
+                    _jogosConsecutivosTimeAtual.value = 1
+                } else {
                     _timeBrancoAtual.value = emptyList()
                     _timeVermelhoAtual.value = emptyList()
-                } else {
-                    if (vencedor == timeGanhadorUltimoJogo) {
-                        _jogosConsecutivosTimeAtual.value++
-                    } else {
-                        _jogosConsecutivosTimeAtual.value = 1
-                    }
-
-                    if (vencedor == TimeColor.BRANCO) {
-                        _timeBrancoAtual.value = ativosBranco
-                        _timeVermelhoAtual.value = emptyList()
-                    } else {
-                        _timeVermelhoAtual.value = ativosVermelho
-                        _timeBrancoAtual.value = emptyList()
-                    }
+                    _jogosConsecutivosTimeAtual.value = 0
                 }
                 
                 jogadorRepository.atualizarStatusCampoMuitos(jogadoresQueJogaram.toList(), false)
-
                 _jogadoresSubstituidosIds.value = emptySet()
                 _jogadoresQueEntraramSubstitutosIds.value = emptySet()
             } catch (e: Exception) {
@@ -280,20 +306,15 @@ class SessaoViewModel(
     fun removerDaListaPresenca(jogadorId: Long) {
         viewModelScope.launch {
             try {
-                // 1. Marcar como inativo no banco de dados para persistência
                 val presencas = presencaRepository.obterPresencasOrdenadas()
                 presencas.find { it.jogador.id == jogadorId }?.let {
                     presencaRepository.marcarComoInativo(it.presenca.id)
                 }
 
-                // 2. Remover da lista em memória (fila de espera)
                 _listaPresenca.update { list -> list.filter { it.first.id != jogadorId } }
-
-                // 3. Remover dos times atuais se estiver escalado
                 _timeBrancoAtual.update { list -> list.filter { it.id != jogadorId } }
                 _timeVermelhoAtual.update { list -> list.filter { it.id != jogadorId } }
                 
-                // 4. Resetar status de campo no repo de jogadores
                 jogadorRepository.atualizarStatusCampo(jogadorId, false)
             } catch (e: Exception) {
                 Log.e(TAG, "Erro ao remover jogador da presença: ${e.message}")
@@ -301,21 +322,14 @@ class SessaoViewModel(
         }
     }
 
-    /**
-     * Remove múltiplos jogadores da presença (saída definitiva da pelada).
-     */
     fun removerVariosDaListaPresenca(jogadorIds: List<Long>) {
         viewModelScope.launch {
             try {
-                // 1. Banco de Dados (Inativação lógica)
                 presencaRepository.marcarJogadoresComoInativosNoDia(jogadorIds)
 
-                // 2. Memória (Fila de Espera)
                 _listaPresenca.update { list ->
                     list.filter { it.first.id !in jogadorIds }
                 }
-
-                // 3. Memória (Times Atuais)
                 _timeBrancoAtual.update { list ->
                     list.filter { it.id !in jogadorIds }
                 }
@@ -323,7 +337,6 @@ class SessaoViewModel(
                     list.filter { it.id !in jogadorIds }
                 }
 
-                // 4. Status de Campo
                 jogadorRepository.atualizarStatusCampoMuitos(jogadorIds, false)
             } catch (e: Exception) {
                 Log.e(TAG, "Erro ao remover múltiplos jogadores: ${e.message}")
@@ -349,7 +362,7 @@ class SessaoViewModel(
             _duracaoJogoAtualMinutos.value = 30
             _tempoRestanteSegundos.value = 30 * 60
             _jogadoresUltimoJogoIds.value = emptySet()
-            timeGanhadorUltimoJogo = null
+            timeIncumbente = null
         }
     }
 
