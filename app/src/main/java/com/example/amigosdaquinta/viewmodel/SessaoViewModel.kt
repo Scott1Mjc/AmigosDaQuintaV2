@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.Calendar
 
 class SessaoViewModel(
     private val jogoRepository: JogoRepository,
@@ -91,6 +92,7 @@ class SessaoViewModel(
     init {
         restaurarSessaoSeExistir()
         iniciarTimerLoop()
+        observarPresencasNoBanco()
     }
 
     private fun iniciarTimerLoop() {
@@ -105,6 +107,35 @@ class SessaoViewModel(
                         _timerPausado.value = true
                     }
                 }
+            }
+        }
+    }
+
+    private fun observarPresencasNoBanco() {
+        viewModelScope.launch {
+            val calendar = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            val inicio = calendar.timeInMillis
+            calendar.apply {
+                set(Calendar.HOUR_OF_DAY, 23)
+                set(Calendar.MINUTE, 59)
+                set(Calendar.SECOND, 59)
+                set(Calendar.MILLISECOND, 999)
+            }
+            val fim = calendar.timeInMillis
+
+            presencaRepository.obterPresencasDoDia(inicio, fim).collect { lista ->
+                val jogadoresIds = lista.map { it.jogadorId }
+                val jogadores = jogadorRepository.obterPorIds(jogadoresIds)
+                val jogadoresMap = jogadores.associateBy { it.id }
+                
+                _listaPresenca.value = lista.mapNotNull { presenca ->
+                    jogadoresMap[presenca.jogadorId]?.let { it to presenca.horarioChegada }
+                }.distinctBy { it.first.id }
             }
         }
     }
@@ -132,17 +163,14 @@ class SessaoViewModel(
 
                     _timeBrancoAtual.value = todosJogadores.filter { j ->
                         participacoes.any { it.jogadorId == j.id && it.time == TimeColor.BRANCO }
-                    }
+                    }.distinctBy { it.id }
                     _timeVermelhoAtual.value = todosJogadores.filter { j ->
                         participacoes.any { it.jogadorId == j.id && it.time == TimeColor.VERMELHO }
-                    }
+                    }.distinctBy { it.id }
 
                     _jogadoresSubstituidosIds.value = participacoes.filter { it.foiSubstituido }.map { it.jogadorId }.toSet()
                     _jogadoresQueEntraramSubstitutosIds.value = participacoes.filter { it.entrouComoSubstituto }.map { it.jogadorId }.toSet()
                     _jogadoresUltimoJogoIds.value = participacoes.map { it.jogadorId }.toSet()
-
-                    val presencas = presencaRepository.obterPresencasOrdenadas()
-                    _listaPresenca.value = presencas.map { Pair(it.jogador, it.horarioChegada) }
 
                     // Tenta inferir o incumbente para restaurar o estado da rotação
                     if (jogoEmAndamento.numeroJogo > 1) {
@@ -196,8 +224,8 @@ class SessaoViewModel(
 
                 jogadorRepository.atualizarStatusCampoMuitos((timeBranco + timeVermelho).map { it.id }, true)
 
-                _timeBrancoAtual.value = timeBranco
-                _timeVermelhoAtual.value = timeVermelho
+                _timeBrancoAtual.value = timeBranco.distinctBy { it.id }
+                _timeVermelhoAtual.value = timeVermelho.distinctBy { it.id }
                 _placarBranco.value = 0
                 _placarVermelho.value = 0
                 _jogadoresSubstituidosIds.value = emptySet()
@@ -247,11 +275,11 @@ class SessaoViewModel(
                 timeIncumbente = proximoTimeQueFica
 
                 if (proximoTimeQueFica == TimeColor.BRANCO) {
-                    _timeBrancoAtual.value = ativosBranco
+                    _timeBrancoAtual.value = ativosBranco.distinctBy { it.id }
                     _timeVermelhoAtual.value = emptyList()
                     _jogosConsecutivosTimeAtual.value = 1 // Sinaliza que já jogou 1 e vai pro 2º
                 } else if (proximoTimeQueFica == TimeColor.VERMELHO) {
-                    _timeVermelhoAtual.value = ativosVermelho
+                    _timeVermelhoAtual.value = ativosVermelho.distinctBy { it.id }
                     _timeBrancoAtual.value = emptyList()
                     _jogosConsecutivosTimeAtual.value = 1
                 } else {
@@ -272,8 +300,15 @@ class SessaoViewModel(
     fun substituirJogador(jogadorSaindo: Jogador, jogadorEntrando: Jogador, time: TimeColor, isLesionado: Boolean = false) {
         viewModelScope.launch {
             try {
-                if (time == TimeColor.BRANCO) _timeBrancoAtual.update { it + jogadorEntrando }
-                else _timeVermelhoAtual.update { it + jogadorEntrando }
+                if (time == TimeColor.BRANCO) {
+                    _timeBrancoAtual.update { list ->
+                        if (list.any { it.id == jogadorEntrando.id }) list else (list + jogadorEntrando).distinctBy { it.id }
+                    }
+                } else {
+                    _timeVermelhoAtual.update { list ->
+                        if (list.any { it.id == jogadorEntrando.id }) list else (list + jogadorEntrando).distinctBy { it.id }
+                    }
+                }
 
                 _jogadoresSubstituidosIds.update { it + jogadorSaindo.id }
                 _jogadoresQueEntraramSubstitutosIds.update { it + jogadorEntrando.id }
@@ -295,9 +330,16 @@ class SessaoViewModel(
 
     fun adicionarAListaPresenca(jogador: Jogador) {
         viewModelScope.launch {
-            if (!_listaPresenca.value.any { it.first.id == jogador.id }) {
-                val timestamp = System.currentTimeMillis()
-                _listaPresenca.update { it + (jogador to timestamp) }
+            val timestamp = System.currentTimeMillis()
+            var shouldRegister = false
+            _listaPresenca.update { list ->
+                if (list.any { it.first.id == jogador.id }) list 
+                else {
+                    shouldRegister = true
+                    list + (jogador to timestamp)
+                }
+            }
+            if (shouldRegister) {
                 presencaRepository.registrarPresenca(jogador.id, timestamp)
             }
         }

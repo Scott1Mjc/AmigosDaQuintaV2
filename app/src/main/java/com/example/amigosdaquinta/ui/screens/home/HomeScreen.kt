@@ -139,9 +139,9 @@ fun HomeScreen(
                         if (podeAdicionar) {
                             sessaoViewModel.adicionarAListaPresenca(jogador)
                             if (time == "BRANCO") {
-                                timeBrancoLocal = timeBrancoLocal + jogador
+                                timeBrancoLocal = (timeBrancoLocal + jogador).distinctBy { it.id }
                             } else {
-                                timeVermelhoLocal = timeVermelhoLocal + jogador
+                                timeVermelhoLocal = (timeVermelhoLocal + jogador).distinctBy { it.id }
                             }
                             searchQuery = ""
                         }
@@ -154,7 +154,7 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 val timeVermelhoOrdenado = remember(timeVermelhoExibido) {
-                    timeVermelhoExibido.sortedByDescending { it.isPosicaoGoleiro }
+                    timeVermelhoExibido.distinctBy { it.id }.sortedByDescending { it.isPosicaoGoleiro }
                 }
                 TimeCardEscalacao(
                     modifier = Modifier.fillMaxWidth().weight(1f),
@@ -168,7 +168,7 @@ fun HomeScreen(
                 )
 
                 val timeBrancoOrdenado = remember(timeBrancoExibido) {
-                    timeBrancoExibido.sortedByDescending { it.isPosicaoGoleiro }
+                    timeBrancoExibido.distinctBy { it.id }.sortedByDescending { it.isPosicaoGoleiro }
                 }
                 TimeCardEscalacao(
                     modifier = Modifier.fillMaxWidth().weight(1f),
@@ -299,7 +299,7 @@ private fun FilaChegadaCard(
             } else {
                 // ✅ REGRA: A lista sempre mostra quem já confirmou presença (Lista de Chegada)
                 // Ela não deve ser filtrada enquanto o usuário digita.
-                val listaParaExibir = jogadores
+                val listaParaExibir = remember(jogadores) { jogadores.distinctBy { it.id } }
 
                 LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(items = listaParaExibir, key = { it.id }) { jogador ->
@@ -416,8 +416,9 @@ private fun TimeCardEscalacao(
                 Text("${jogadores.size}/11", style = MaterialTheme.typography.titleSmall)
             }
             Spacer(modifier = Modifier.height(4.dp))
+            val jogadoresUnicos = remember(jogadores) { jogadores.distinctBy { it.id } }
             LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                items(items = jogadores, key = { it.id }) { jogador ->
+                items(items = jogadoresUnicos, key = { it.id }) { jogador ->
                     Surface(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraSmall, color = Color.White) {
                         Row(modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(if (jogador.isPosicaoGoleiro) "[GOL] ${jogador.nome}" else jogador.nome, style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)

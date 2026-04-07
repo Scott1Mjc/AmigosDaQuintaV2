@@ -19,7 +19,7 @@ import com.example.amigosdaquinta.viewmodel.SessaoViewModel
 
 /**
  * Tela para apontar jogadores que saíram durante a partida.
- * Permite remover jogadores que estavam escalados, tirando-os totalmente da sessão e da fila de presença.
+ * Exibe TODOS os jogadores da lista de presença (lista de chegada) para permitir a remoção definitiva da sessão.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,8 +27,17 @@ fun JogadoresSairamDurantePartidaScreen(
     sessaoViewModel: SessaoViewModel,
     onNavigateBack: () -> Unit
 ) {
-    val timeBranco by sessaoViewModel.timeBrancoAtual.collectAsState()
-    val timeVermelho by sessaoViewModel.timeVermelhoAtual.collectAsState()
+    // ✅ Fonte de dados alterada: Agora observa toda a lista de presença, não apenas os times ativos.
+    val listaPresenca by sessaoViewModel.listaPresenca.collectAsState()
+    
+    // Garantimos que a lista de jogadores seja única para evitar crash no LazyColumn (Key already used)
+    val todosJogadores = remember(listaPresenca) {
+        listaPresenca
+            .distinctBy { it.first.id }
+            .sortedBy { it.second }
+            .map { it.first }
+    }
+
     val jogadoresSaindo = remember { mutableStateListOf<Long>() }
 
     Scaffold(
@@ -81,11 +90,11 @@ fun JogadoresSairamDurantePartidaScreen(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            if (timeVermelho.isNotEmpty()) {
+            if (todosJogadores.isNotEmpty()) {
                 item {
-                    Text("TIME VERMELHO", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Color.Red)
+                    Text("LISTA DE PRESENÇA (ORDEM DE CHEGADA)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Color(0xFF4B0082))
                 }
-                items(timeVermelho, key = { it.id }) { jogador ->
+                items(todosJogadores, key = { it.id }) { jogador ->
                     JogadorSairItem(
                         jogador = jogador,
                         isSelected = jogadoresSaindo.contains(jogador.id),
@@ -95,29 +104,10 @@ fun JogadoresSairamDurantePartidaScreen(
                         }
                     )
                 }
-            }
-
-            if (timeBranco.isNotEmpty()) {
-                item {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("TIME BRANCO", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Color(0xFF4B0082))
-                }
-                items(timeBranco, key = { it.id }) { jogador ->
-                    JogadorSairItem(
-                        jogador = jogador,
-                        isSelected = jogadoresSaindo.contains(jogador.id),
-                        onToggle = {
-                            if (jogadoresSaindo.contains(jogador.id)) jogadoresSaindo.remove(jogador.id)
-                            else jogadoresSaindo.add(jogador.id)
-                        }
-                    )
-                }
-            }
-            
-            if (timeBranco.isEmpty() && timeVermelho.isEmpty()) {
+            } else {
                 item {
                     Box(modifier = Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Nenhum jogador escalado encontrado.")
+                        Text("Nenhum jogador encontrado na lista de presença.")
                     }
                 }
             }

@@ -68,10 +68,13 @@ fun JogoScreen(
     }
 
     // ✅ REGRA: A lista lateral segue estritamente a ordem de chegada (FIFO)
-    // Não filtra mais conforme o usuário digita.
+    // Garantimos IDs únicos para evitar crash no LazyColumn
     val jogadoresExibidos by remember(listaPresenca) {
         derivedStateOf {
-            listaPresenca.sortedBy { it.second }.map { it.first }
+            listaPresenca
+                .distinctBy { it.first.id }
+                .sortedBy { it.second }
+                .map { it.first }
         }
     }
 
@@ -177,6 +180,7 @@ fun JogoScreen(
     if (showSubDialog && jogadorParaSubstituir != null) {
         val jogadoresPresentesDisponiveis = listaPresenca
             .map { it.first }
+            .distinctBy { it.id }
             .filter { j ->
                 j.id != jogadorParaSubstituir!!.first.id &&
                 !timeBranco.any { it.id == j.id && it.id !in substituidoresIds } &&
@@ -290,11 +294,12 @@ private fun FilaEsperaLateral(
             Spacer(modifier = Modifier.height(8.dp))
             
             // ✅ REGRA: A lista sempre mostra quem já confirmou presença.
-            // Não deve ser filtrada enquanto o usuário digita.
             if (isLoading && searchQuery.isNotEmpty()) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
             } else {
-                val listaTotalOrdenada = remember(listaPresenca) { listaPresenca.sortedBy { it.second }.map { it.first.id } }
+                val listaTotalOrdenada = remember(listaPresenca) { 
+                    listaPresenca.distinctBy { it.first.id }.sortedBy { it.second }.map { it.first.id } 
+                }
                 
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxSize()) {
                     items(jogadores, key = { it.id }) { jogador ->
@@ -367,16 +372,16 @@ fun EscalacaoAtivaCard(
     onSubstituir: (Jogador) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // ✅ REGRA: GOLEIRO SEMPRE NO TOPO DA ESCALAÇÃO
-    val jogadoresOrdenados = remember(jogadores) {
-        jogadores.sortedByDescending { it.isPosicaoGoleiro }
+    // ✅ REGRA: GOLEIRO SEMPRE NO TOPO DA ESCALAÇÃO e removemos duplicados
+    val jogadoresExibicao = remember(jogadores) {
+        jogadores.distinctBy { it.id }.sortedByDescending { it.isPosicaoGoleiro }
     }
 
     Card(modifier = modifier.fillMaxHeight(), colors = CardDefaults.cardColors(containerColor = containerColor), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
         Column(modifier = Modifier.padding(8.dp)) {
             Text(titulo, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(bottom = 4.dp))
             LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.fillMaxSize()) {
-                items(jogadoresOrdenados, key = { it.id }) { jogador ->
+                items(jogadoresExibicao, key = { it.id }) { jogador ->
                     val jaSaiu = substituidoresIds.contains(jogador.id)
                     val eSubstituto = entrouSubstitutoIds.contains(jogador.id)
                     Surface(modifier = Modifier.fillMaxWidth().alpha(if (jaSaiu) 0.5f else 1f), shape = MaterialTheme.shapes.extraSmall, color = Color.White.copy(alpha = 0.7f)) {

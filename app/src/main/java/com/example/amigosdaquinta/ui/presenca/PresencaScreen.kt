@@ -39,6 +39,10 @@ fun PresencaScreen(
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     val dataAtual = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date()) }
 
+    val listaExibicao = remember(listaPresenca) {
+        listaPresenca.distinctBy { it.first.id }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -65,11 +69,11 @@ fun PresencaScreen(
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)
         ) {
-            PresencaSummaryCard(total = listaPresenca.size)
+            PresencaSummaryCard(total = listaExibicao.size)
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            if (listaPresenca.isEmpty()) {
+            if (listaExibicao.isEmpty()) {
                 EmptyPresencaView()
             } else {
                 LazyColumn(
@@ -77,7 +81,7 @@ fun PresencaScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     itemsIndexed(
-                        items = listaPresenca,
+                        items = listaExibicao,
                         key = { _, item -> item.first.id }
                     ) { index, item ->
                         PresencaItem(
@@ -94,13 +98,13 @@ fun PresencaScreen(
 
             Button(
                 onClick = onFormarTimes,
-                enabled = listaPresenca.size >= 22,
+                enabled = listaExibicao.size >= 22,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = MaterialTheme.shapes.medium,
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4B0082))
             ) {
                 Text(
-                    if (listaPresenca.size >= 22) "FORMAR TIMES (${listaPresenca.size})" else "AGUARDANDO MÍNIMO (22)",
+                    if (listaExibicao.size >= 22) "FORMAR TIMES (${listaExibicao.size})" else "AGUARDANDO MÍNIMO (22)",
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -108,7 +112,7 @@ fun PresencaScreen(
     }
 
     if (showDialog) {
-        val idsPresentes = listaPresenca.map { it.first.id }.toSet()
+        val idsPresentes = listaExibicao.map { it.first.id }.toSet()
         SelecionarJogadorDialog(
             jogadores = jogadores.filter { it.id !in idsPresentes },
             onDismiss = { showDialog = false },
