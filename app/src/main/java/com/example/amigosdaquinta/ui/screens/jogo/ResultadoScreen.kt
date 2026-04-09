@@ -91,6 +91,7 @@ fun ResultadoScreen(
                 modifier = Modifier.fillMaxWidth(if (isTablet) 0.5f else 1f),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+            //botão partida rolando
                 Button(
                     onClick = onProximoJogo,
                     modifier = Modifier.fillMaxWidth().height(56.dp),

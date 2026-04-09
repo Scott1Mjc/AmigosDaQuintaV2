@@ -81,6 +81,11 @@ fun NavGraph(
                     if (navController.currentDestination?.route == Screen.Home.route) {
                         navController.navigate(Screen.Jogo.route) 
                     }
+                },
+                onNavigateToFormacao = {
+                    if (navController.currentDestination?.route == Screen.Home.route) {
+                        navController.navigate(Screen.FormacaoAutomatica.route)
+                    }
                 }
             )
         }
@@ -98,15 +103,24 @@ fun NavGraph(
         }
 
         composable(Screen.FormacaoAutomatica.route) {
-            val timeGanhador = when {
-                timeBranco.isNotEmpty() -> TimeColor.BRANCO
-                timeVermelho.isNotEmpty() -> TimeColor.VERMELHO
-                else -> null
+            val numJogo by sessaoViewModel.numeroDoProximoJogo.collectAsState()
+            
+            // Lógica para determinar quem é o "ganhador" (ou time que fica) para o preview
+            val timeGanhador = if (numJogo == 1) {
+                // No 1º jogo, passamos Branco como referência para mostrar ambos os times formados manualmente
+                TimeColor.BRANCO 
+            } else {
+                when {
+                    timeBranco.isNotEmpty() -> TimeColor.BRANCO
+                    timeVermelho.isNotEmpty() -> TimeColor.VERMELHO
+                    else -> null
+                }
             }
+            
             val jogadoresGanhadores = if (timeGanhador == TimeColor.BRANCO) timeBranco else timeVermelho
 
             FormacaoAutomaticaScreen(
-                timeGanhador = timeGanhador,
+                timeGanhador = if (numJogo == 1) null else timeGanhador,
                 jogadoresTimeGanhador = jogadoresGanhadores,
                 filaEspera = listaPresenca,
                 sessaoViewModel = sessaoViewModel,

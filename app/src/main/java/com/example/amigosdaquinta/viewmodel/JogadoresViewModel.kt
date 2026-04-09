@@ -6,15 +6,22 @@ import androidx.lifecycle.viewModelScope
 import com.example.amigosdaquinta.data.local.JogadoresIniciais
 import com.example.amigosdaquinta.data.local.entity.Jogador
 import com.example.amigosdaquinta.data.repository.JogadorRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 /**
  * ViewModel responsável pela gestão do cadastro e listagem geral de jogadores.
+ * 
+ * Correção: Centralizado o fluxo de dados para evitar múltiplos coletores conflitantes
+ * e garantir que a lista seja atualizada corretamente após inserções/buscas.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class JogadoresViewModel(
     private val jogadorRepository: JogadorRepository
 ) : ViewModel() {
+
+    private val _searchQuery = MutableStateFlow("")
 
     private val _jogadores = MutableStateFlow<List<Jogador>>(emptyList())
     val jogadores: StateFlow<List<Jogador>> = _jogadores.asStateFlow()
@@ -26,8 +33,27 @@ class JogadoresViewModel(
     val erroMensagem: StateFlow<String?> = _erroMensagem.asStateFlow()
 
     init {
-        carregarJogadores()
+        observarJogadores()
         verificarEPopularBanco()
+    }
+
+    private fun observarJogadores() {
+        viewModelScope.launch {
+            _searchQuery
+                .debounce { if (it.isBlank()) 0L else 300L }
+                .onEach { _isLoading.value = true }
+                .flatMapLatest { query ->
+                    if (query.isBlank()) {
+                        jogadorRepository.obterTodosAtivos()
+                    } else {
+                        jogadorRepository.buscarPorNome(query)
+                    }
+                }
+                .collect { lista ->
+                    _jogadores.value = lista
+                    _isLoading.value = false
+                }
+        }
     }
 
     private fun verificarEPopularBanco() {
@@ -43,29 +69,11 @@ class JogadoresViewModel(
         }
     }
 
-    private fun carregarJogadores() {
-        viewModelScope.launch {
-            _isLoading.value = true
-            jogadorRepository.obterTodosAtivos().collect { lista ->
-                _jogadores.value = lista
-                _isLoading.value = false
-            }
-        }
-    }
-
     /**
-     * Filtra a lista de jogadores ativos pelo nome ou número.
+     * Atualiza a query de busca, disparando o fluxo reativo de filtragem.
      */
     fun buscarPorNome(query: String) {
-        viewModelScope.launch {
-            if (query.isBlank()) {
-                // Ao limpar a busca, recarrega todos os ativos (limitamos a 1 emissão para evitar loops)
-                jogadorRepository.obterTodosAtivos().take(1).collect { _jogadores.value = it }
-            } else {
-                // Usa a nova busca híbrida (Nome + Número)
-                jogadorRepository.buscarPorNome(query).collect { _jogadores.value = it }
-            }
-        }
+        _searchQuery.value = query
     }
 
     private fun popularBancoComJogadoresIniciais() {
@@ -90,6 +98,7 @@ class JogadoresViewModel(
 
             val novoJogador = Jogador(nome = nome.trim(), numeroCamisa = numero, isPosicaoGoleiro = isGoleiro)
             jogadorRepository.inserir(novoJogador)
+            // Após inserir, se houver uma busca ativa, o flatMapLatest se encarregará de atualizar a lista.
             _erroMensagem.value = null
         }
     }

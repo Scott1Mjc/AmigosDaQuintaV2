@@ -30,7 +30,8 @@ fun HomeScreen(
     sessaoViewModel: SessaoViewModel,
     onNavigateToHistorico: () -> Unit = {},
     onNavigateToGerenciarJogadores: () -> Unit = {},
-    onNavigateToJogo: () -> Unit = {}
+    onNavigateToJogo: () -> Unit = {},
+    onNavigateToFormacao: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val jogadoresBanco by viewModel.jogadores.collectAsState()
@@ -67,6 +68,8 @@ fun HomeScreen(
         if (searchQuery.isNotBlank()) {
             kotlinx.coroutines.delay(300)
             viewModel.buscarPorNome(searchQuery)
+        } else {
+            viewModel.buscarPorNome("") // Recarrega todos ao limpar
         }
     }
 
@@ -190,10 +193,9 @@ fun HomeScreen(
                         } else if (numeroJogo > 1) {
                             onNavigateToJogo() 
                         } else {
-                            val todosJogadores = (timeBrancoLocal + timeVermelhoLocal).distinctBy { it.id }
-                            todosJogadores.forEach { sessaoViewModel.adicionarAListaPresenca(it) }
+                            // Escalação manual do primeiro jogo: envia os times para o ViewModel e vai para o preview
                             sessaoViewModel.criarJogo(timeBrancoLocal, timeVermelhoLocal)
-                            onNavigateToJogo()
+                            onNavigateToFormacao()
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(56.dp),
