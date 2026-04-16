@@ -19,7 +19,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.amigosdaquinta.data.local.entity.Jogador
+import com.example.amigosdaquinta.data.local.entity.TimeColor
 import com.example.amigosdaquinta.viewmodel.JogadoresViewModel
 import com.example.amigosdaquinta.viewmodel.SessaoViewModel
 
@@ -39,26 +41,16 @@ fun HomeScreen(
     val listaPresenca by sessaoViewModel.listaPresenca.collectAsState()
     val temJogoAtivo by sessaoViewModel.temJogoAtivo.collectAsState()
     val numeroJogo by sessaoViewModel.numeroDoProximoJogo.collectAsState()
-
     val timeBrancoSessao by sessaoViewModel.timeBrancoAtual.collectAsState()
     val timeVermelhoSessao by sessaoViewModel.timeVermelhoAtual.collectAsState()
-
+    val timeBrancoLocal by sessaoViewModel.timeBrancoEscalacaoManual.collectAsState()
+    val timeVermelhoLocal by sessaoViewModel.timeVermelhoEscalacaoManual.collectAsState()
     var searchQuery by rememberSaveable { mutableStateOf("") }
-    var timeBrancoLocal by rememberSaveable { mutableStateOf<List<Jogador>>(emptyList()) }
-    var timeVermelhoLocal by rememberSaveable { mutableStateOf<List<Jogador>>(emptyList()) }
     var showFabMenu by remember { mutableStateOf(false) }
     var showExitDialog by remember { mutableStateOf(false) }
-
     val permitirEdicao = !temJogoAtivo && numeroJogo == 1
     val timeBrancoExibido = if (permitirEdicao) timeBrancoLocal else timeBrancoSessao
     val timeVermelhoExibido = if (permitirEdicao) timeVermelhoLocal else timeVermelhoSessao
-
-    LaunchedEffect(numeroJogo, temJogoAtivo) {
-        if (numeroJogo == 1 && !temJogoAtivo) {
-            timeBrancoLocal = emptyList()
-            timeVermelhoLocal = emptyList()
-        }
-    }
 
     BackHandler {
         showExitDialog = true
@@ -140,12 +132,7 @@ fun HomeScreen(
                         val podeAdicionar = if (jogador.isPosicaoGoleiro) !temGoleiro else qtdLinha < 10
                         
                         if (podeAdicionar) {
-                            sessaoViewModel.adicionarAListaPresenca(jogador)
-                            if (time == "BRANCO") {
-                                timeBrancoLocal = (timeBrancoLocal + jogador).distinctBy { it.id }
-                            } else {
-                                timeVermelhoLocal = (timeVermelhoLocal + jogador).distinctBy { it.id }
-                            }
+                            sessaoViewModel.adicionarAoTimeManual(jogador, if (time == "BRANCO") TimeColor.BRANCO else TimeColor.VERMELHO)
                             searchQuery = ""
                         }
                     }
@@ -166,7 +153,7 @@ fun HomeScreen(
                     jogadores = timeVermelhoOrdenado,
                     permitirEdicao = permitirEdicao,
                     onRemover = { jogador -> 
-                        if (permitirEdicao) timeVermelhoLocal = timeVermelhoLocal.filter { it.id != jogador.id } 
+                        if (permitirEdicao) sessaoViewModel.removerDoTimeManual(jogador.id) 
                     }
                 )
 
@@ -180,11 +167,12 @@ fun HomeScreen(
                     jogadores = timeBrancoOrdenado,
                     permitirEdicao = permitirEdicao,
                     onRemover = { jogador -> 
-                        if (permitirEdicao) timeBrancoLocal = timeBrancoLocal.filter { it.id != jogador.id } 
+                        if (permitirEdicao) sessaoViewModel.removerDoTimeManual(jogador.id) 
                     }
                 )
 
-                val podeIniciar = timeBrancoLocal.size == 11 && timeVermelhoLocal.size == 11
+                // ✅ NOVA REGRA: Mínimo 2 jogadores em cada time (4 no total)
+                val podeIniciar = timeBrancoLocal.size >= 2 && timeVermelhoLocal.size >= 2
                 
                 Button(
                     onClick = {
@@ -379,23 +367,27 @@ private fun ItemFilaChegada(
             Spacer(modifier = Modifier.width(3.dp))
             Surface(shape = MaterialTheme.shapes.small, color = Color(0xFFF0EDFF)) { Text("#${jogador.numeroCamisa}", modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp), style = MaterialTheme.typography.labelSmall, color = Color(0xFF4B0082), fontWeight = FontWeight.Bold) }
             if (permitirEdicao) {
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Text("|", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "V", 
-                    style = MaterialTheme.typography.titleSmall, 
-                    fontWeight = FontWeight.Bold, 
-                    color = if (podeAddVermelho) Color.Red else Color.LightGray, 
-                    modifier = Modifier.clickable(enabled = podeAddVermelho, onClick = onAdicionarVermelho)
-                )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
+                    text = "V", 
+                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 20.sp), 
+                    fontWeight = FontWeight.ExtraBold, 
+                    color = if (podeAddVermelho) Color.Red else Color.LightGray, 
+                    modifier = Modifier
+                        .padding(horizontal = 4.dp)
+                        .clickable(enabled = podeAddVermelho, onClick = onAdicionarVermelho)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
                     text = "B", 
-                    style = MaterialTheme.typography.titleSmall, 
-                    fontWeight = FontWeight.Bold, 
+                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 20.sp), 
+                    fontWeight = FontWeight.ExtraBold, 
                     color = if (podeAddBranco) Color(0xFF4B0082) else Color.LightGray, 
-                    modifier = Modifier.clickable(enabled = podeAddBranco, onClick = onAdicionarBranco)
+                    modifier = Modifier
+                        .padding(horizontal = 4.dp)
+                        .clickable(enabled = podeAddBranco, onClick = onAdicionarBranco)
                 )
             }
         }

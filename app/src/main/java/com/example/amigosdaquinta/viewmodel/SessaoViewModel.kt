@@ -47,6 +47,11 @@ class SessaoViewModel(
 
     private val _timeVermelhoAtual = MutableStateFlow<List<Jogador>>(emptyList())
     val timeVermelhoAtual: StateFlow<List<Jogador>> = _timeVermelhoAtual.asStateFlow()
+    private val _timeBrancoEscalacaoManual = MutableStateFlow<List<Jogador>>(emptyList())
+    val timeBrancoEscalacaoManual: StateFlow<List<Jogador>> = _timeBrancoEscalacaoManual.asStateFlow()
+
+    private val _timeVermelhoEscalacaoManual = MutableStateFlow<List<Jogador>>(emptyList())
+    val timeVermelhoEscalacaoManual: StateFlow<List<Jogador>> = _timeVermelhoEscalacaoManual.asStateFlow()
 
     private val _placarBranco = MutableStateFlow(0)
     val placarBranco: StateFlow<Int> = _placarBranco.asStateFlow()
@@ -199,6 +204,23 @@ class SessaoViewModel(
         }
     }
 
+    // Métodos para gerenciar a escalação manual persistente
+    fun adicionarAoTimeManual(jogador: Jogador, time: TimeColor) {
+        if (time == TimeColor.BRANCO) {
+            _timeBrancoEscalacaoManual.update { (it + jogador).distinctBy { j -> j.id } }
+            _timeVermelhoEscalacaoManual.update { list -> list.filter { it.id != jogador.id } }
+        } else {
+            _timeVermelhoEscalacaoManual.update { (it + jogador).distinctBy { j -> j.id } }
+            _timeBrancoEscalacaoManual.update { list -> list.filter { it.id != jogador.id } }
+        }
+        adicionarAListaPresenca(jogador)
+    }
+
+    fun removerDoTimeManual(jogadorId: Long) {
+        _timeBrancoEscalacaoManual.update { list -> list.filter { it.id != jogadorId } }
+        _timeVermelhoEscalacaoManual.update { list -> list.filter { it.id != jogadorId } }
+    }
+
     fun criarJogo(timeBranco: List<Jogador>, timeVermelho: List<Jogador>) {
         viewModelScope.launch {
             try {
@@ -230,6 +252,9 @@ class SessaoViewModel(
                 _placarVermelho.value = 0
                 _jogadoresSubstituidosIds.value = emptySet()
                 _jogadoresQueEntraramSubstitutosIds.value = emptySet()
+                // Limpa a escalação manual após criar o jogo
+                _timeBrancoEscalacaoManual.value = emptyList()
+                _timeVermelhoEscalacaoManual.value = emptyList()
             } catch (e: Exception) {
                 Log.e(TAG, "Erro ao criar jogo: ${e.message}")
             }
@@ -356,6 +381,8 @@ class SessaoViewModel(
                 _listaPresenca.update { list -> list.filter { it.first.id != jogadorId } }
                 _timeBrancoAtual.update { list -> list.filter { it.id != jogadorId } }
                 _timeVermelhoAtual.update { list -> list.filter { it.id != jogadorId } }
+                _timeBrancoEscalacaoManual.update { list -> list.filter { it.id != jogadorId } }
+                _timeVermelhoEscalacaoManual.update { list -> list.filter { it.id != jogadorId } }
                 
                 jogadorRepository.atualizarStatusCampo(jogadorId, false)
             } catch (e: Exception) {
@@ -378,6 +405,12 @@ class SessaoViewModel(
                 _timeVermelhoAtual.update { list ->
                     list.filter { it.id !in jogadorIds }
                 }
+                _timeBrancoEscalacaoManual.update { list ->
+                    list.filter { it.id !in jogadorIds }
+                }
+                _timeVermelhoEscalacaoManual.update { list ->
+                    list.filter { it.id !in jogadorIds }
+                }
 
                 jogadorRepository.atualizarStatusCampoMuitos(jogadorIds, false)
             } catch (e: Exception) {
@@ -395,6 +428,8 @@ class SessaoViewModel(
             _jogoAtualId.value = null
             _timeBrancoAtual.value = emptyList()
             _timeVermelhoAtual.value = emptyList()
+            _timeBrancoEscalacaoManual.value = emptyList()
+            _timeVermelhoEscalacaoManual.value = emptyList()
             _placarBranco.value = 0
             _placarVermelho.value = 0
             _numeroDoProximoJogo.value = 1

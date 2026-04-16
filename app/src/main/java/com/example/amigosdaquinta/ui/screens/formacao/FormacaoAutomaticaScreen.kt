@@ -61,16 +61,16 @@ fun FormacaoAutomaticaScreen(
             val todosOrdenados = if (eh1Jogo) todosFila else sortDisponiveis(todosFila)
             val gols = todosOrdenados.filter { it.isPosicaoGoleiro }
             val linhas = todosOrdenados.filter { !it.isPosicaoGoleiro }
-            
-            if (gols.size >= 2 && linhas.size >= 20) {
-                val t1L = linhas.take(10)
-                val t2L = linhas.drop(10).take(10)
-                Pair(listOf(gols[0]) + t1L, listOf(gols[1]) + t2L)
+
+            val totalDisponiveis = todosOrdenados.size
+            if (totalDisponiveis >= 4) {
+                // Tenta dividir o mais igualitário possível até o limite de 11 por time
+                val qtdPorTime = (totalDisponiveis / 2).coerceAtMost(11)
+                val t1 = todosOrdenados.take(qtdPorTime)
+                val t2 = todosOrdenados.drop(qtdPorTime).take(qtdPorTime)
+                Pair(t1, t2)
             } else {
-                // Tenta formar com o que tiver se não houver 22, mas priorizando 11 vs 11
-                if (gols.size >= 2 && linhas.size >= 10) {
-                    Pair(listOf(gols[0]) + linhas.take(10), emptyList<Jogador>())
-                } else Pair(emptyList(), emptyList())
+                Pair(emptyList(), emptyList())
             }
         } else {
             // Um time fica (vencedor) e o desafiante entra (próximos da fila com rotação)
@@ -79,11 +79,12 @@ fun FormacaoAutomaticaScreen(
             
             val disponiveis = sortDisponiveis(todosFila.filter { it.id !in idsTimeQueFica })
             
-            // 1. Reserva o time desafiante (próximos 11 da fila com prioridade para quem não jogou)
+            // 1. Reserva o time desafiante (próximos da fila até completar 11 ou o que tiver disponível)
             val desafianteGol = disponiveis.firstOrNull { it.isPosicaoGoleiro }
             val desafianteLinhas = disponiveis.filter { !it.isPosicaoGoleiro }.take(10)
             
-            val idsDesafianteReservado = (desafianteLinhas.map { it.id } + (desafianteGol?.id ?: -1L)).toSet()
+            val timeDesafiante = (if (desafianteGol != null) listOf(desafianteGol) else emptyList()) + desafianteLinhas
+            val idsDesafianteReservado = timeDesafiante.map { it.id }.toSet()
             
             // 2. Preenche buracos no Time Que Fica usando quem sobrou APÓS o desafiante ser montado
             val bancoAposDesafiante = disponiveis.filter { it.id !in idsDesafianteReservado }
@@ -97,8 +98,7 @@ fun FormacaoAutomaticaScreen(
                 timeQueFicaCompleto.addAll(bancoAposDesafiante.filter { !it.isPosicaoGoleiro }.take(faltaLinha))
             }
 
-            if (timeQueFicaCompleto.size == 11 && desafianteGol != null && desafianteLinhas.size == 10) {
-                val timeDesafiante = listOf(desafianteGol) + desafianteLinhas
+            if (timeQueFicaCompleto.size >= 2 && timeDesafiante.size >= 2) {
                 if (timeGanhador == TimeColor.BRANCO) Pair(timeQueFicaCompleto, timeDesafiante)
                 else Pair(timeDesafiante, timeQueFicaCompleto)
             } else {
@@ -107,7 +107,7 @@ fun FormacaoAutomaticaScreen(
         }
     }
 
-    val podeIniciar = timeBranco.size == 11 && timeVermelho.size == 11
+    val podeIniciar = timeBranco.size >= 2 && timeVermelho.size >= 2
 
     Scaffold(
         topBar = {
@@ -146,7 +146,7 @@ fun FormacaoAutomaticaScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4B0082))
             ) {
                 Text(
-                    if (podeIniciar) "INICIAR ${numeroJogo}º JOGO" else "AGUARDANDO JOGADORES SUFICIENTES",
+                    if (podeIniciar) "INICIAR ${numeroJogo}º JOGO" else "AGUARDANDO JOGADORES (MÍN. 2 POR TIME)",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
